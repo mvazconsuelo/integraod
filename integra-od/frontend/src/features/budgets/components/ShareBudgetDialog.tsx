@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { formatMoney } from "@/lib/currency";
 import { formatPhone, normalizePhone, phoneError, whatsappUrl } from "@/lib/phone";
 import { budgetMessage } from "@/lib/whatsapp";
+import { recordShared } from "../services/budgets.service";
 import { publicLink } from "@/features/payments/services/payments.service";
 import type { BudgetDetail, Contact, Settings } from "@/types";
 
@@ -40,6 +41,7 @@ export function ShareBudgetDialog({ open, onOpenChange, budget: b, settings, onD
       const advance = pending ? { amountCents: pending.amount_cents, link: publicLink(pending.public_id), kind: pending.kind } : null;
       const url = whatsappUrl(digits, budgetMessage({ patient: b.patient_ref, number: b.number, clinic, advance }));
       if (win) win.location.href = url; else window.location.href = url;
+      await recordShared(b.id, "whatsapp").catch(() => undefined); // el hecho de compartir queda registrado
       onChanged();
       onOpenChange(false);
     } catch (e) {

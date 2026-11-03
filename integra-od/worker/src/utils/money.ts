@@ -96,6 +96,27 @@ export const BUDGET_STATUS_NAME: Record<BudgetStatus, string> = { sent: "Enviado
 export const paidPercent = (totalCents: number, appliedCents: number): number =>
   totalCents <= 0 ? 0 : Math.min(100, Math.floor((appliedCents * 100) / totalCents));
 
+/**
+ * Situación comercial de un presupuesto: UNA sola, con esta prioridad (así los grupos del Inicio no se pisan).
+ *   cancelled · completed · declined (el cliente lo rechazó) son finales.
+ *   attention         un pedido de pago venció: hay que pedirlo de nuevo o registrar el pago.
+ *   awaiting_payment  hay un pedido de pago vigente sin pagar, o el cliente aceptó y todavía no pagó.
+ *   in_progress       ya hay pagos reales aplicados y falta cobrar.
+ *   to_answer         se compartió y no hay respuesta ni pago ni pedido.
+ *   not_shared        solo se creó: nadie usó "Compartir" (no se asume que se envió).
+ */
+export type BudgetSituation = "cancelled" | "completed" | "declined" | "attention" | "awaiting_payment" | "in_progress" | "to_answer" | "not_shared";
+export function deriveSituation(b: { status: string; answer: string | null; shared_at: string | null; open_requests: number; expired_requests: number }): BudgetSituation {
+  if (b.status === "cancelled") return "cancelled";
+  if (b.status === "completed") return "completed";
+  if (b.answer === "declined") return "declined";
+  if (b.expired_requests > 0) return "attention";
+  if (b.open_requests > 0) return "awaiting_payment";
+  if (b.status === "in_progress") return "in_progress";
+  if (b.answer === "accepted") return "awaiting_payment";
+  return b.shared_at ? "to_answer" : "not_shared";
+}
+
 const KIND_LABEL: Record<PaymentKind, string> = { advance: "Anticipo", partial: "Pago parcial", final: "Pago final" };
 
 interface Treated { applied_cents: number; balance_cents: number; has_advance: boolean; first_item: string | null; item_count: number }

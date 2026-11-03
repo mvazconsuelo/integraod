@@ -23,6 +23,12 @@ export interface BudgetRow {
   has_advance: number;
   first_item: string | null;
   item_count: number;
+  /** Cuándo se compartió por primera vez (null: nunca se usó Compartir) y la respuesta expresa del cliente. */
+  shared_at: string | null;
+  answer: "accepted" | "declined" | null;
+  /** Pedidos de pago vigentes (sin pagar y sin vencer) y vencidos sin pagar. */
+  open_requests: number;
+  expired_requests: number;
 }
 
 export interface BudgetItemRow {
@@ -49,6 +55,10 @@ export const hasAdvanceSql = () => `(
 const select = () => `SELECT b.*, ${SQL_BUDGET_APPLIED} AS applied_cents, ${hasAdvanceSql()} AS has_advance,
   (SELECT i.description FROM budget_items i WHERE i.budget_id = b.id ORDER BY i.position LIMIT 1) AS first_item,
   (SELECT COUNT(*) FROM budget_items i WHERE i.budget_id = b.id) AS item_count,
+  (SELECT MIN(e.at) FROM budget_events e WHERE e.budget_id = b.id AND e.type = 'shared') AS shared_at,
+  (SELECT e.type FROM budget_events e WHERE e.budget_id = b.id AND e.type IN ('accepted','declined') ORDER BY e.seq DESC LIMIT 1) AS answer,
+  (SELECT COUNT(*) FROM payment_requests r WHERE r.budget_id = b.id AND r.status IN ('pending','partially_paid') AND (r.due_date IS NULL OR r.due_date >= date('now', '${tzOffsetSql()}'))) AS open_requests,
+  (SELECT COUNT(*) FROM payment_requests r WHERE r.budget_id = b.id AND r.status IN ('pending','partially_paid') AND r.due_date < date('now', '${tzOffsetSql()}')) AS expired_requests,
   (SELECT p.phone FROM patients p WHERE p.id = b.patient_id) AS patient_phone FROM budgets b`;
 
 export async function listBudgets(db: D1Database) {
@@ -110,4 +120,8 @@ export async function replaceBudget(db: D1Database, w: BudgetWrite) {
 
 export async function setBudgetStatus(db: D1Database, id: string, status: BudgetStatus, now: string) {
   await db.prepare("UPDATE budgets SET status = ?, updated_at = ? WHERE id = ?").bind(status, now, id).run();
+}
+
+export async function insertEvent(db: D1Database, budgetId: string, type: "shared" | "accepted" | "declined", channel: string, at: string) {
+  await db.prepare("INSERT INTO budget_events (budget_id, type, channel, at) VALUES (?, ?, ?, ?)").bind(budgetId, type, channel, at).run();
 }

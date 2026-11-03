@@ -4,7 +4,7 @@ import { listRequestsOfBudget } from "./payments.service";
 import { AppError } from "../utils/errors";
 import { newId } from "../utils/ids";
 import { nowIso } from "../utils/dates";
-import { BUDGET_STATUS_NAME, MANUAL_TRANSITIONS, budgetBalance, budgetTotal, itemTotal, paidPercent, requestableCents } from "../utils/money";
+import { BUDGET_STATUS_NAME, deriveSituation, MANUAL_TRANSITIONS, budgetBalance, budgetTotal, itemTotal, paidPercent, requestableCents } from "../utils/money";
 import { audit, auditOf } from "./audit.service";
 import { syncBudgetStatus } from "./payment-applications.service";
 import { formatArs } from "../utils/money";
@@ -25,6 +25,7 @@ const withBalance = (b: BudgetRow) => ({
   has_advance: Boolean(b.has_advance),
   balance_cents: budgetBalance(b.total_cents, b.applied_cents),
   paid_percent: paidPercent(b.total_cents, b.applied_cents),
+  situation: deriveSituation(b),
 });
 
 export async function listBudgets(db: D1Database) {
@@ -133,4 +134,23 @@ async function buildTimeline(db: D1Database, id: string, createdAt: string, requ
     if (a.voided_at) events.push({ at: a.voided_at, type: "adjustment", title: "Pago anulado", detail: a.void_reason ?? undefined, amount_cents: a.amount_cents });
   }
   return events.sort((x, y) => y.at.localeCompare(x.at));
+}
+
+/** La persona usó "Compartir". Se guarda el hecho (y el canal), no que el cliente lo haya recibido. */
+export async function recordShared(db: D1Database, id: string, channel: string) {
+  const b = await repo.getBudget(db, id);
+  if (!b) throw new AppError(404, "No encontramos ese presupuesto.");
+  await repo.insertEvent(db, id, "shared", channel, nowIso());
+  await audit(db, { action: "budget.shared", entity: "budget", entityId: id, detail: { channel } });
+  return { ok: true };
+}
+
+/** Respuesta expresa del cliente. Cancelar no es rechazar: esto se registra aparte y a propósito. */
+export async function recordAnswer(db: D1Database, id: string, answer: "accepted" | "declined") {
+  const b = await repo.getBudget(db, id);
+  if (!b) throw new AppError(404, "No encontramos ese presupuesto.");
+  if (b.answer === answer) return { ok: true };
+  await repo.insertEvent(db, id, answer, "manual", nowIso());
+  await audit(db, { action: `budget.${answer}`, entity: "budget", entityId: id, detail: {} });
+  return { ok: true };
 }

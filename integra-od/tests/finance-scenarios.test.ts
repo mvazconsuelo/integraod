@@ -168,14 +168,14 @@ describe("G · Resumen por períodos", () => {
     expect(nov.budgets_emitted_count).toBe(3); // Beto (cancelado), Carla y Dana
     expect(nov.jobs_concreted).toEqual({ count: 0, total_cents: 0 }); // el único con pagos se aceptó en octubre
     expect(nov.average_job_cents).toBeNull();
-    expect(nov.acceptance).toEqual({ emitted: 3, accepted: 0, declined: 1, waiting: 2, rate_pct: 0 }); // Carla y Dana esperan: no entran en la tasa
+    expect(nov.acceptance).toEqual({ emitted: 3, shared: 0, accepted: 0, declined: 0, waiting: 2, rate_pct: null }); // cancelar no es rechazar; Carla y Dana esperan: sin respuestas no hay tasa
     expect(nov.payments_count).toBe(2); // 1/11 y 30/11
     expect(nov.advances_received_count).toBe(0);
     expect(nov.open_jobs_count).toBe(1); // el trabajo con pagos y saldo
     const oct = await month("2026-10-01", "2026-10-31");
     expect(oct.jobs_concreted).toEqual({ count: 1, total_cents: PESOS(200_000) }); // aceptado con su primer pago, el 31/10
     expect(oct.average_job_cents).toBe(PESOS(200_000));
-    expect(oct.acceptance).toEqual({ emitted: 1, accepted: 1, declined: 0, waiting: 0, rate_pct: 100 });
+    expect(oct.acceptance).toEqual({ emitted: 1, shared: 0, accepted: 1, declined: 0, waiting: 0, rate_pct: 100 });
     expect(oct.advances_received_count).toBe(1);
     expect(oct.payments_count).toBe(1);
 
@@ -331,16 +331,19 @@ describe("Control: reglas de las métricas", () => {
     expect(sum.acceptance).toMatchObject({ accepted: 0, waiting: 1, rate_pct: null }); // espera respuesta: no hay tasa todavía
   });
 
-  it("la tasa solo cuenta a los que respondieron: 2 aceptados y 1 cancelado dan 67 %, y 1 sin responder no la cambia", async () => {
+  it("la tasa solo cuenta respuestas expresas: 2 aceptados (pagaron) y 1 rechazado dan 67 %; cancelar y no responder no la cambian", async () => {
     const yes1 = await newBudget(PESOS(10_000), { issued_on: "2026-11-02" });
     const yes2 = await newBudget(PESOS(30_000), { issued_on: "2026-11-03" });
     const no = await newBudget(PESOS(5_000), { issued_on: "2026-11-04" });
-    await newBudget(PESOS(7_000), { issued_on: "2026-11-05" }); // sin responder
+    const cancelled = await newBudget(PESOS(6_000), { issued_on: "2026-11-05" });
+    await newBudget(PESOS(7_000), { issued_on: "2026-11-06" }); // sin responder
     await cashPay(yes1, PESOS(1_000), { paid_on: "2026-11-10" });
     await cashPay(yes2, PESOS(3_000), { paid_on: "2026-11-12" });
-    await budgets.changeStatus(db, no, "cancelled");
+    await budgets.recordShared(db, no, "whatsapp");
+    await budgets.recordAnswer(db, no, "declined");
+    await budgets.changeStatus(db, cancelled, "cancelled"); // administrativo: no es un rechazo
     const nov = await month("2026-11-01", "2026-11-30");
-    expect(nov.acceptance).toEqual({ emitted: 4, accepted: 2, declined: 1, waiting: 1, rate_pct: 67 });
+    expect(nov.acceptance).toEqual({ emitted: 5, shared: 1, accepted: 2, declined: 1, waiting: 1, rate_pct: 67 });
     expect(nov.jobs_concreted).toEqual({ count: 2, total_cents: PESOS(40_000) });
     expect(nov.average_job_cents).toBe(PESOS(20_000)); // (10.000 + 30.000) ÷ 2: el importe de cada presupuesto aceptado, no lo cobrado
   });

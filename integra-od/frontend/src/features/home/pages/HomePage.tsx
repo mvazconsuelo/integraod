@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/currency";
 import { resolveRange } from "@/lib/period";
 import { clinicTimeZone } from "@/lib/time-zone";
 import { groupWorks } from "@/lib/work-groups";
-import type { Budget, PaymentRequest, Summary } from "@/types";
+import type { Budget, Summary } from "@/types";
 
 function greeting(): string {
   const hour = Number(new Intl.DateTimeFormat("es-AR", { hour: "numeric", hourCycle: "h23", timeZone: clinicTimeZone() }).format(new Date()));
@@ -23,11 +23,10 @@ export function HomePage() {
   const month = useMemo(() => resolveRange({ period: "month", from: "", to: "" }), []);
   const summary = useApi<Summary>(month ? `/dashboard?from=${month.from}&to=${month.to}` : null);
   const budgets = useApi<Budget[]>("/budgets");
-  const requests = useApi<PaymentRequest[]>("/payments");
 
-  const failed = summary.error || budgets.error || requests.error;
-  const retry = () => { void summary.reload(); void budgets.reload(); void requests.reload(); };
-  const groups = budgets.data && requests.data ? groupWorks(budgets.data, requests.data) : null;
+  const failed = summary.error || budgets.error;
+  const retry = () => { void summary.reload(); void budgets.reload(); };
+  const groups = budgets.data ? groupWorks(budgets.data) : null;
   const noJobs = budgets.data?.length === 0;
   const recibido = summary.data ? formatMoney(summary.data.collected_cents) : "—";
   const porCobrar = summary.data ? formatMoney(summary.data.budgets_balance_cents) : "—";
@@ -59,9 +58,10 @@ export function HomePage() {
           {noJobs ? (
             <p className="mt-4 flex-1 text-[15px] leading-relaxed text-muted">Todavía no tenés presupuestos. Tocá <strong className="text-foreground">Nuevo presupuesto</strong> para armar el primero.</p>
           ) : (
-            <dl className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
+            <dl className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
+              <Indicator to="/presupuestos?grupo=esperando-pago" label="Esperando pago" value={groups?.awaitingPayment.length} icon={Hourglass} tone="warning" />
               <Indicator to="/presupuestos?grupo=en-curso" label="En curso" value={groups?.inProgress.length} icon={Hammer} tone="success" />
-              <Indicator to="/presupuestos?grupo=por-responder" label="Por responder" value={groups?.toAnswer.length} icon={MessageCircle} tone="warning" />
+              <Indicator to="/presupuestos?grupo=por-responder" label="Por responder" value={groups?.toAnswer.length} icon={MessageCircle} tone="neutral" />
               <Indicator to="/presupuestos?grupo=atencion" label="Necesitan atención" value={groups?.attention.length} icon={CircleAlert} tone={groups && groups.attention.length > 0 ? "danger" : "neutral"} />
             </dl>
           )}
@@ -90,10 +90,10 @@ const TONE = {
 /** Un número con su ícono y lo que cuenta; al tocarlo se abre ese grupo de presupuestos. */
 function Indicator({ to, label, value, icon: Icon, tone }: { to: string; label: string; value?: number; icon: LucideIcon; tone: keyof typeof TONE }) {
   return (
-    <Link to={to} className={cn("flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center sm:gap-2.5 sm:px-3 sm:py-4 transition hover:brightness-[0.97]", TONE[tone].tile)}>
-      <dd className="order-2 text-[28px] font-semibold leading-none sm:text-[34px] tracking-tight tabular">{value ?? "—"}</dd>
-      <span aria-hidden className={cn("order-1 grid h-8 w-8 place-items-center rounded-full", TONE[tone].chip)}><Icon size={16} /></span>
-      <dt className="order-3 text-balance text-[12.5px] leading-tight text-muted">{label}</dt>
+    <Link to={to} className={cn("flex min-w-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 transition hover:brightness-[0.97] sm:flex-col sm:gap-2.5 sm:px-3 sm:py-4 sm:text-center", TONE[tone].tile)}>
+      <dd className="order-2 text-[26px] font-semibold leading-none tracking-tight tabular sm:text-[34px]">{value ?? "—"}</dd>
+      <span aria-hidden className={cn("order-1 grid h-8 w-8 shrink-0 place-items-center rounded-full", TONE[tone].chip)}><Icon size={16} /></span>
+      <dt className="order-3 min-w-0 text-balance text-[12.5px] leading-tight text-muted">{label}</dt>
     </Link>
   );
 }

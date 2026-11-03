@@ -1,6 +1,7 @@
 export type Kind = "advance" | "partial" | "final";
 export type Method = "mercadopago" | "cash" | "transfer" | (string & {});
 export type BudgetStatus = "draft" | "sent" | "in_progress" | "completed" | "cancelled";
+export type Situation = "cancelled" | "completed" | "declined" | "attention" | "awaiting_payment" | "in_progress" | "to_answer" | "not_shared";
 export type RequestStatus = "pending" | "partially_paid" | "paid" | "cancelled" | "expired";
 
 export interface Budget {
@@ -9,6 +10,10 @@ export interface Budget {
   status: BudgetStatus; notes: string; total_cents: number; applied_cents: number; balance_cents: number;
   /** El anticipo ya se pidió o se cobró: solo se pueden pedir pagos que siguen. */
   has_advance: boolean;
+  /** Cuándo se compartió por primera vez (null: nunca) y la respuesta expresa del cliente. */
+  shared_at: string | null; answer: "accepted" | "declined" | null;
+  /** Una sola situación, decidida por el servidor: de ahí salen los grupos del Inicio. */
+  situation: Situation;
   /** Primer concepto del presupuesto y cuántos tiene: para nombrar el tratamiento en los cobros. */
   first_item: string | null; item_count: number;
 }
@@ -51,7 +56,7 @@ export interface Summary {
   /** Presupuestos creados en el período (todos, aunque se hayan cancelado). */ budgets_emitted_count: number;
   /** Presupuestos cuyo primer pago real confirmado cayó en el período (se aceptan pagando). */ jobs_concreted: { count: number; total_cents: number };
   /** Promedio del total de los concretados (null si no hubo). */ average_job_cents: number | null;
-  /** De los emitidos en el período: aceptados, cancelados y los que todavía esperan. La tasa deja afuera a los que esperan. */ acceptance: { emitted: number; accepted: number; declined: number; waiting: number; rate_pct: number | null };
+  /** De los emitidos en el período: aceptados, cancelados y los que todavía esperan. La tasa deja afuera a los que esperan. */ acceptance: { emitted: number; shared: number; accepted: number; declined: number; waiting: number; rate_pct: number | null };
   /** Saldo de hoy: presupuestos con pagos y saldo pendiente. */ open_jobs_count: number;
   /** Pagos reales confirmados en el período, cada uno una vez. */ payments_count: number;
   /** Presupuestos con un anticipo real confirmado en el período. */ advances_received_count: number;

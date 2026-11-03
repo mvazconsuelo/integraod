@@ -6,6 +6,7 @@ import { newId } from "../utils/ids";
 import { nowIso } from "../utils/dates";
 import { applicableAmount, budgetBalance, deriveBudgetStatus, paymentAvailable } from "../utils/money";
 import { audit } from "./audit.service";
+import { insertEvent } from "../repositories/budgets.repository";
 
 /** Mantiene el estado del presupuesto coherente con sus pagos aplicados (la regla vive en utils/money). */
 export async function syncBudgetStatus(db: D1Database, budgetId: string) {
@@ -14,6 +15,8 @@ export async function syncBudgetStatus(db: D1Database, budgetId: string) {
   const next = deriveBudgetStatus(b.status, b.total_cents, b.applied_cents);
   if (next === b.status) return;
   await budgetsRepo.setBudgetStatus(db, budgetId, next, nowIso());
+  // El primer pago real aplicado es la aceptación del cliente (evidencia, no inferencia).
+  if ((next === "in_progress" || next === "completed") && b.answer !== "accepted") await insertEvent(db, budgetId, "accepted", "payment", nowIso());
   await audit(db, { action: "budget.status", entity: "budget", entityId: budgetId, detail: { from: b.status, to: next, by: "system" } });
 }
 
@@ -25,6 +28,7 @@ export async function applyPayment(db: D1Database, paymentId: string, budgetId: 
     const budget = await budgetsRepo.getBudget(db, budgetId);
     if (!payment) throw new AppError(404, "No encontramos ese pago.");
     if (!budget) throw new AppError(404, "No encontramos ese presupuesto.");
+    if (payment.provider === "mock") throw new AppError(409, "Ese pago es simulado (piloto): no es dinero y no se aplica a ningún presupuesto.", "simulated_payment");
     if (payment.status !== "approved") throw new AppError(409, "Ese pago está anulado y no se puede aplicar.");
     if (budget.status === "cancelled") throw new AppError(409, "Ese presupuesto está cancelado.");
     if (amountCents > paymentAvailable(payment.amount_cents, payment.applied_cents)) {
@@ -40,7 +44,7 @@ export async function applyPayment(db: D1Database, paymentId: string, budgetId: 
 export async function autoApply(db: D1Database, paymentId: string, budgetId: string) {
   const payment = await paymentsRepo.getPayment(db, paymentId);
   const budget = await budgetsRepo.getBudget(db, budgetId);
-  if (!payment || !budget || budget.status === "cancelled") return;
+  if (!payment || !budget || budget.status === "cancelled" || payment.provider === "mock") return;
   const amount = applicableAmount(
     paymentAvailable(payment.amount_cents, payment.applied_cents),
     budgetBalance(budget.total_cents, budget.applied_cents),

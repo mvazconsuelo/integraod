@@ -22,6 +22,9 @@ export const budgetSchema = z.object({
   items: z.array(budgetItemSchema).min(1, "Agregá al menos un concepto."),
 });
 
+export const budgetSharedSchema = z.object({ channel: z.string().trim().max(30).default("") });
+export const budgetAnswerSchema = z.object({ answer: z.enum(["accepted", "declined"]) });
+
 export const budgetStatusSchema = z.object({
   status: z.enum(["sent", "in_progress", "completed", "cancelled"]),
 });

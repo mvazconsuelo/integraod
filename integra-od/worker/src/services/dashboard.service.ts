@@ -11,8 +11,9 @@ const REAL = "p.provider <> 'mock'";
  *  - Presupuestos emitidos: los creados en el período, por su fecha de emisión (compartirlos ocurre fuera del sistema: no se registra el envío).
  *  - Trabajos concretados: presupuestos cuyo PRIMER pago real confirmado cayó en el período (un presupuesto se acepta pagando).
  *  - Importe promedio: promedio del total de esos presupuestos concretados.
- *  - Tasa de aceptación: de los emitidos en el período que ya tuvieron respuesta, cuántos se aceptaron:
- *    aceptados ÷ (aceptados + cancelados). Los que esperan respuesta no entran.
+ *  - Tasa de aceptación: de los emitidos en el período con respuesta EXPRESA: aceptados ÷ (aceptados + rechazados).
+ *    Cancelar no es rechazar y los que esperan respuesta no entran. Sin respuestas todavía: no hay tasa (null).
+ *  - Saldo real: las aplicaciones de pagos simulados no lo reducen (ver SQL_BUDGET_APPLIED).
  *  - Trabajos con saldo (de hoy): presupuestos En curso.
  *  - Pagos recibidos: cantidad de pagos aprobados y reales del período (cada pago cuenta una vez).
  *  - Anticipos recibidos: presupuestos con un anticipo real confirmado en el período.
@@ -107,17 +108,20 @@ export async function getSummary(db: D1Database, from: string, to: string) {
     .bind(from, to)
     .first<{ count: number; total: number }>();
 
-  // Respuesta de los emitidos en el período: aceptados (pagaron), cancelados, o todavía esperando.
+  // Respuesta de los emitidos en el período: solo cuentan las respuestas EXPRESAS (aceptó o rechazó).
+  // Cancelar un presupuesto no es rechazo; un presupuesto sin respuesta no entra en la tasa.
   const answered = await db
     .prepare(
-      `WITH ${ACCEPTED}
-       SELECT COUNT(*) AS emitted,
-              COALESCE(SUM(CASE WHEN b.id IN (SELECT id FROM accepted) THEN 1 END),0) AS accepted,
-              COALESCE(SUM(CASE WHEN b.status = 'cancelled' THEN 1 END),0) AS declined
-       FROM budgets b WHERE b.issued_on BETWEEN ? AND ?`,
+      `SELECT COUNT(*) AS emitted,
+              COALESCE(SUM(CASE WHEN EXISTS (SELECT 1 FROM budget_events e WHERE e.budget_id = b.id AND e.type = 'shared') THEN 1 END),0) AS shared,
+              COALESCE(SUM(CASE WHEN ans = 'accepted' THEN 1 END),0) AS accepted,
+              COALESCE(SUM(CASE WHEN ans = 'declined' THEN 1 END),0) AS declined,
+              COALESCE(SUM(CASE WHEN ans IS NULL AND st <> 'cancelled' THEN 1 END),0) AS waiting
+       FROM (SELECT b.id AS id, b.status AS st, (SELECT e.type FROM budget_events e WHERE e.budget_id = b.id AND e.type IN ('accepted','declined') ORDER BY e.seq DESC LIMIT 1) AS ans
+             FROM budgets b WHERE b.issued_on BETWEEN ? AND ?) b`,
     )
     .bind(from, to)
-    .first<{ emitted: number; accepted: number; declined: number }>();
+    .first<{ emitted: number; shared: number; accepted: number; declined: number; waiting: number }>();
 
   const advancesReceived = await db
     .prepare(
@@ -171,9 +175,10 @@ export async function getSummary(db: D1Database, from: string, to: string) {
     average_job_cents: concreted!.count > 0 ? Math.round(concreted!.total / concreted!.count) : null,
     acceptance: {
       emitted: answered!.emitted,
+      shared: answered!.shared,
       accepted: answered!.accepted,
       declined: answered!.declined,
-      waiting: answered!.emitted - answered!.accepted - answered!.declined,
+      waiting: answered!.waiting, // sin respuesta y todavía vigentes (los cancelados no esperan nada)
       rate_pct: answered!.accepted + answered!.declined > 0 ? Math.round((answered!.accepted * 100) / (answered!.accepted + answered!.declined)) : null,
     },
     open_jobs_count: openJobs!.count,

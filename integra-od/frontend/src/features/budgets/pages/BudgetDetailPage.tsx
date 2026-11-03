@@ -29,7 +29,7 @@ import { BudgetSheet } from "../components/BudgetSheet";
 import { BudgetCancelFlow, type CancelMode } from "../components/BudgetStatusPanel";
 import { BudgetTimeline } from "../components/BudgetTimeline";
 import { ShareBudgetDialog } from "../components/ShareBudgetDialog";
-import { changeStatus } from "../services/budgets.service";
+import { changeStatus, recordAnswer } from "../services/budgets.service";
 import { workOf } from "./BudgetsPage";
 
 /**
@@ -78,12 +78,16 @@ export function BudgetDetailPage() {
     : active.length === 0 && waiting.length === 0 ? { label: "Compartir", run: () => setSharing(true) }
     : { label: "Registrar pago", run: () => setRegistering({}) };
 
+  const answer = async (a: "accepted" | "declined") => { try { await recordAnswer(id, a); setActionError(""); await reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "No pudimos guardar la respuesta."); } };
+  const canAnswer = !cancelled && !done;
   const menu: MenuAction[] = [
     { label: "Compartir", onClick: () => setSharing(true), hidden: cancelled || primary?.label === "Compartir" },
     { label: "Registrar pago", onClick: () => setRegistering({}), hidden: !canCollect || primary?.label === "Registrar pago" },
     { label: "Pedir un pago", onClick: () => setRequesting("new"), hidden: !canRequest },
     { label: "Usar un pago ya recibido", onClick: () => setApplying(true), hidden: !canCollect },
     { label: "Editar", onClick: () => navigate(`/presupuestos/${b.id}/editar`), hidden: cancelled },
+    { label: "El cliente aceptó", onClick: () => void answer("accepted"), hidden: !canAnswer || b.answer === "accepted" },
+    { label: "El cliente lo rechazó", onClick: () => void answer("declined"), hidden: !canAnswer || b.answer === "declined" },
     { label: "Descargar PDF", onClick: download },
     { label: "Reabrir presupuesto", onClick: () => void setStatus("sent"), hidden: !cancelled },
     { label: b.applied_cents > 0 ? "¿Por qué no puedo cancelarlo?" : "Cancelar presupuesto", tone: b.applied_cents > 0 ? undefined : "danger", onClick: () => setCancelMode(b.applied_cents > 0 ? "blocked" : "confirm"), hidden: cancelled || done },

@@ -121,3 +121,26 @@ Servicio de pagos 62 ✔ · App 185 ✔ (nuevas: escenarios A–G, concurrencia,
 - Una sola clave de administración: la bitácora registra "admin" (P6, fuera de alcance).
 - La copia de pagos en la app puede atrasarse hasta ~1 minuto respecto del servicio de pagos (P7).
 - Sin probar contra Mercado Pago real: falta app/credenciales, URL pública y usuarios de prueba. No se habilitaron cobros reales.
+
+---
+
+# Ronda 2 · métricas, situación comercial y ciclo de pagos
+
+## Reglas de negocio finales
+- **Dinero recibido**: pagos reales (`provider <> 'mock'`) aprobados, por día local del negocio. Un link pedido, un pago pendiente, rechazado, anulado o simulado no lo suma.
+- **Saldo real** de un presupuesto = total − aplicaciones activas de pagos **reales**. Un pago simulado no se puede aplicar (`simulated_payment`), y las aplicaciones simuladas que existieran de antes no descuentan (`SQL_BUDGET_APPLIED`). La migración `0014` recalculó el estado guardado con esta regla.
+- **Compartido**: solo si la persona usó "Compartir" (evento `shared` con canal). Crear, descargar o ver no cuentan. No prueba que el cliente lo recibió.
+- **Aceptado**: el cliente aceptó (evento manual) o se le aplicó su primer pago real (evento `accepted`, canal `payment`). **Rechazado**: evento expreso; cancelar no es rechazar.
+- **Tasa de aceptación** = aceptados ÷ (aceptados + rechazados) de los emitidos en el período. Sin respuestas: no hay tasa (`null`, se muestra "—"). Lo anterior a `0013` no se reconstruye.
+- **Situación comercial** (una sola, por prioridad): cancelado · completado · rechazado · necesita atención (pedido vencido) · esperando pago (pedido vigente, o aceptado sin pagar) · en curso · por responder (compartido sin respuesta) · sin compartir. Los grupos del Inicio salen de ahí y no se pisan; el resto sigue en la lista de presupuestos.
+
+## Cambios
+Migraciones `0013_budget_events` (eventos, append-only) y `0014_resync_status_real_balance`. Backend: `applications.repository`, `payment-applications.service`, `budgets.repository/service/routes`, `dashboard.service`, `utils/money` (`deriveSituation`). Frontend: `work-groups`, Inicio, Presupuestos, detalle (aceptó / rechazó) y registro al compartir.
+
+## Pruebas
+`tests/metrics-and-situations.test.ts` (26 casos: simulado vs. real, respuestas, mes y zona, situaciones, matriz del ciclo de pagos, concurrencia) y `tests/work-groups.test.ts`. Corridas con SQLite real vía el adaptador de D1; **no** contra Mercado Pago real ni con concurrencia de producción.
+
+## Límites que quedan
+- Devolución (`refunded`) llega solo por aviso del proveedor: probada con el servicio simulado, no con Mercado Pago real.
+- La concurrencia se probó con llamadas simultáneas sobre SQLite; la atomicidad en D1 se apoya en una sola sentencia `INSERT … WHERE`, no verificada bajo carga real.
+- Un pago recibido sin presupuesto se puede asignar a uno o repartir entre varios; asociar un pago de otro cliente no está restringido.

@@ -9,7 +9,8 @@ export interface ApplicationRow {
 }
 
 const PAYMENT_APPLIED = `COALESCE((SELECT SUM(amount_cents) FROM payment_applications a WHERE a.payment_id = p.id AND a.voided_at IS NULL), 0)`;
-const BUDGET_APPLIED = `COALESCE((SELECT SUM(amount_cents) FROM payment_applications a WHERE a.budget_id = b.id AND a.voided_at IS NULL), 0)`;
+// Saldo REAL: lo aplicado de pagos simulados (provider 'mock') nunca reduce lo que falta cobrar.
+const BUDGET_APPLIED = `COALESCE((SELECT SUM(a.amount_cents) FROM payment_applications a JOIN payments rp ON rp.id = a.payment_id WHERE a.budget_id = b.id AND a.voided_at IS NULL AND rp.provider <> 'mock'), 0)`;
 export const SQL_PAYMENT_APPLIED = PAYMENT_APPLIED;
 export const SQL_BUDGET_APPLIED = BUDGET_APPLIED;
 
@@ -28,7 +29,7 @@ export async function insertApplication(
       `INSERT INTO payment_applications (id, payment_id, budget_id, amount_cents, created_at)
        SELECT ?1, ?2, ?3, ?4, ?5
        WHERE ?4 > 0
-         AND EXISTS (SELECT 1 FROM payments p WHERE p.id = ?2 AND p.status = 'approved'
+         AND EXISTS (SELECT 1 FROM payments p WHERE p.id = ?2 AND p.status = 'approved' AND p.provider <> 'mock'
                      AND p.amount_cents - ${PAYMENT_APPLIED} >= ?4)
          AND EXISTS (SELECT 1 FROM budgets b WHERE b.id = ?3 AND b.status <> 'cancelled'
                      AND b.total_cents - ${BUDGET_APPLIED} >= ?4)`,

@@ -13,11 +13,12 @@ import { ErrorMessage, Loading } from "@/components/feedback/ErrorMessage";
 import { useApi } from "@/hooks/useApi";
 import { formatMoney } from "@/lib/currency";
 import { groupWorks, type WorkGroup } from "@/lib/work-groups";
-import type { Budget, PaymentRequest } from "@/types";
+import type { Budget } from "@/types";
 
 // Los grupos del Inicio, tal como viajan en la dirección (?grupo=…).
 const GROUPS: Record<string, { key: WorkGroup; label: string }> = {
   "en-curso": { key: "inProgress", label: "En curso" },
+  "esperando-pago": { key: "awaitingPayment", label: "Esperando pago" },
   "por-responder": { key: "toAnswer", label: "Por responder" },
   atencion: { key: "attention", label: "Necesitan atención" },
 };
@@ -29,7 +30,6 @@ export const workOf = (b: Pick<Budget, "first_item" | "item_count">) => (b.first
 export function BudgetsPage() {
   const [params, setParams] = useSearchParams();
   const { data, error, loading, reload } = useApi<Budget[]>("/budgets");
-  const requests = useApi<PaymentRequest[]>("/payments");
   const [query, setQuery] = useState("");
   if (params.get("nuevo") === "1") return <Navigate to={`/presupuestos/nuevo${params.get("cliente") ? `?cliente=${encodeURIComponent(params.get("cliente")!)}` : ""}`} replace />; // enlaces viejos
 
@@ -41,7 +41,7 @@ export function BudgetsPage() {
   const q = normText(query.trim());
   const found = (b: Budget) => !q || normText(b.patient_ref).includes(q) || normText(workOf(b)).includes(q) || String(b.number).padStart(4, "0").includes(q.replace(/^0+/, "") || q);
   const group = GROUPS[params.get("grupo") ?? ""];
-  const inGroup = group ? new Set(groupWorks(all, requests.data ?? [])[group.key]) : null;
+  const inGroup = group ? new Set(groupWorks(all)[group.key]) : null;
   const shown = (inGroup ? all.filter((b) => inGroup.has(b.id)) : view === "pendientes" ? owing : all).filter(found);
 
   const newButton = <Button asChild><Link to="/presupuestos/nuevo">Nuevo presupuesto</Link></Button>;

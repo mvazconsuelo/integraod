@@ -218,13 +218,14 @@ describe("reglas del presupuesto (las valida la app antes de pedirle nada al ser
 });
 
 describe("checkout simulado (piloto) de punta a punta", () => {
-  it("aprobar registra el pago, cierra el cobro y baja el saldo; no se puede pagar dos veces", async () => {
+  it("aprobar registra el pago simulado y cierra el cobro, pero NO baja el saldo real; no se puede pagar dos veces", async () => {
     const b = await budget();
     const r = await ask(b, 3_000_000, "advance");
     expect((await payments.simulateCheckout(s.core, r.public_id, "approved")).result).toBe("registered");
     expect((await payments.getRequestDetail(s.core.DB, r.id)).status).toBe("paid");
-    expect((await detail(b)).balance_cents).toBe(7_000_000);
-    expect((await payments.listReceived(s.core.DB))[0].provider).toBe("mock");
+    expect((await detail(b)).balance_cents).toBe(10_000_000); // simulado: no es dinero, no reduce lo que falta cobrar
+    expect((await detail(b)).status).toBe("sent");
+    expect((await payments.listReceived(s.core.DB))[0]).toMatchObject({ provider: "mock", applied_cents: 0 });
     await expect(payments.simulateCheckout(s.core, r.public_id, "approved")).rejects.toThrow(/ya fue pagado/);
   });
   it("rechazado o pendiente no registra dinero", async () => {
