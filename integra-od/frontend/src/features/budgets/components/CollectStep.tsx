@@ -71,10 +71,10 @@ export function CollectStep({ budget: b, settings, handleRef, onBusy }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       <p className="flex items-center gap-2 text-sm font-medium text-success"><CircleCheck size={18} />Presupuesto guardado · {formatMoney(b.total_cents)}</p>
 
-      <div role="radiogroup" aria-label="Cómo vas a cobrar" className="space-y-3">
+      <div role="radiogroup" aria-label="Cómo vas a cobrar" className="space-y-2 sm:space-y-3">
         <Option icon={Link2} title="Con link de Mercado Pago" text={onlineReady ? "Se lo mandás y paga desde el celular." : "Primero conectá Mercado Pago en Configuración."} selected={mode === "link"} disabled={!onlineReady} onSelect={() => chooseMode("link")} />
         <Option icon={Wallet} title="Ya me pagaron" text="Efectivo o transferencia: lo registrás ahora." selected={mode === "paid"} onSelect={() => chooseMode("paid")} />
         <Option icon={Clock} title="Todavía no cobro" text="Lo compartís y cobrás después." selected={mode === "later"} onSelect={() => chooseMode("later")} />
@@ -82,7 +82,7 @@ export function CollectStep({ budget: b, settings, handleRef, onBusy }: Props) {
       {!onlineReady && <p className="text-xs text-muted">Para cobrar con link, conectá Mercado Pago en <Link to="/configuracion?seccion=mercadopago" className="font-medium text-secondary underline">Configuración</Link>.</p>}
 
       {mode !== "later" && (
-        <div className="space-y-5 rounded-3xl border bg-white p-5 sm:p-6">
+        <div className="space-y-4 rounded-3xl border bg-white p-4 sm:space-y-5 sm:p-6">
           <Field plain label={mode === "link" ? "¿Qué le pedís?" : "¿Qué te pagaron?"}>
             <Segmented label="Una parte o todo" value={scope} onChange={chooseScope}
               options={[{ value: "part", label: mode === "link" ? "Un anticipo" : "Una parte" }, { value: "all", label: mode === "link" ? "El total" : "Todo" }]} />
@@ -121,9 +121,9 @@ export function CollectStep({ budget: b, settings, handleRef, onBusy }: Props) {
 function Option({ icon: Icon, title, text, selected, disabled, onSelect }: { icon: LucideIcon; title: string; text: string; selected: boolean; disabled?: boolean; onSelect: () => void }) {
   return (
     <button type="button" role="radio" aria-checked={selected} aria-disabled={disabled} disabled={disabled} onClick={onSelect}
-      className={cn("flex w-full cursor-pointer items-center gap-4 rounded-2xl border bg-white p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-55", selected ? "border-primary ring-2 ring-primary/25" : "hover:bg-soft/60")}>
-      <span aria-hidden className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full", selected ? "bg-primary text-white" : "bg-primary/10 text-primary")}><Icon size={20} /></span>
-      <span className="min-w-0 flex-1"><span className="block font-semibold leading-tight">{title}</span><span className="mt-0.5 block text-sm text-muted">{text}</span></span>
+      className={cn("flex w-full cursor-pointer items-center gap-3 rounded-2xl border bg-white p-3 text-left sm:gap-4 sm:p-4 transition disabled:cursor-not-allowed disabled:opacity-55", selected ? "border-primary ring-2 ring-primary/25" : "hover:bg-soft/60")}>
+      <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full", selected ? "bg-primary text-white" : "bg-primary/10 text-primary")}><Icon size={20} /></span>
+      <span className="min-w-0 flex-1"><span className="block font-semibold leading-tight">{title}</span><span className="mt-0.5 block text-[13px] leading-snug text-muted sm:text-sm">{text}</span></span>
       <span aria-hidden className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border-2", selected ? "border-primary bg-primary text-white" : "border-foreground/25")}>{selected && <CircleCheck size={14} />}</span>
     </button>
   );

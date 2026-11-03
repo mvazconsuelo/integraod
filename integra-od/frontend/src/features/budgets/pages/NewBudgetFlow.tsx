@@ -81,9 +81,9 @@ export function NewBudgetFlow() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl pb-28 md:pb-0">
+    <div className="mx-auto max-w-2xl">
       {step < 3 && <BackLink to="/presupuestos">presupuestos</BackLink>}
-      <PageHeader title="Nuevo presupuesto" icon={FilePlus2} />
+      <div className="hidden md:block"><PageHeader title="Nuevo presupuesto" icon={FilePlus2} /></div>
       <Stepper step={step} labels={STEPS} />
 
       {step === 1 && <ClientField h={h} pickerRef={picker} autoFocus={!params.get("cliente")} />}
@@ -106,15 +106,15 @@ export function NewBudgetFlow() {
 
 
       {step < 4 && (
-        <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 border-t bg-white/95 px-4 py-3 backdrop-blur md:static md:z-auto md:mt-5 md:rounded-2xl md:border md:bg-white md:p-4">
+        <div className="sticky bottom-[calc(4.1rem+env(safe-area-inset-bottom))] z-20 -mx-4 mt-4 border-t bg-white px-4 py-2.5 md:static md:z-auto md:mx-0 md:mt-5 md:rounded-2xl md:border md:p-4">
           {error && <p role="alert" className="mx-auto mb-2 max-w-2xl text-sm font-medium text-danger">{error}</p>}
           <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
-            {step === 2 ? <div><p className="text-xs text-muted">Total</p><p className="text-2xl font-semibold tabular">{formatMoney(h.sum)}</p></div>
+            {step === 2 ? <div><p className="text-xs text-muted">Total</p><p className="text-xl font-semibold tabular">{formatMoney(h.sum)}</p></div>
               : step === 3 && budget ? <Link to={`/presupuestos/${budget.id}/editar`} className="text-sm font-medium text-secondary hover:underline">Editar presupuesto</Link>
               : <span />}
             <div className="flex items-center gap-3">
-              {step === 2 && <Button variant="ghost" className="h-12" onClick={() => setStep(1)}>Atrás</Button>}
-              <Button className="h-12 px-7 text-base" disabled={busy} onClick={() => void next()}>{step === 3 ? "Continuar" : "Continuar"}</Button>
+              {step === 2 && <Button variant="ghost" className="h-11" onClick={() => setStep(1)}>Atrás</Button>}
+              <Button className="h-11 px-7 text-base" disabled={busy} onClick={() => void next()}>Continuar</Button>
             </div>
           </div>
         </div>
