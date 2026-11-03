@@ -1,0 +1,14 @@
+# Servicio de pagos: Worker independiente, con su propia base de datos y sus propios secretos.
+name = "clinic-payments"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "clinic-payments"
+database_id = "REEMPLAZAR_CON_EL_ID_DE_clinic-payments"
+migrations_dir = "migrations"
+
+# Reintenta cada minuto la entrega de eventos pendientes hacia la app.
+[triggers]
+crons = ["* * * * *"]

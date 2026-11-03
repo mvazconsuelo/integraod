@@ -1,0 +1,22 @@
+{
+  "name": "plataforma",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "payments",
+    "*/frontend",
+    "*/worker"
+  ],
+  "scripts": {
+    "test": "node scripts/run-all.mjs test",
+    "typecheck": "node scripts/run-all.mjs typecheck",
+    "dev:payments": "npm run dev --prefix payments",
+    "new-app": "node scripts/new-app.mjs",
+    "setup": "node scripts/setup-dev.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "concurrently": "^9.0.0"
+  }
+}

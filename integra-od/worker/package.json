@@ -1,0 +1,20 @@
+{
+  "name": "integra-od-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --persist-to ../../.dev-state",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply integra-od --local --persist-to ../../.dev-state",
+    "migrate:remote": "wrangler d1 migrations apply integra-od --remote",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "wrangler": "^4.156.2"
+  }
+}

@@ -1,0 +1,56 @@
+-- Listado de tratamientos para armar presupuestos. Los precios arrancan en 0:
+-- cada consultorio carga los suyos desde Configuración.
+
+CREATE TABLE treatments (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  price_cents INTEGER NOT NULL DEFAULT 0 CHECK (price_cents >= 0),
+  position INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX idx_treatments_category ON treatments(category, position);
+
+INSERT INTO treatments (id, name, category, price_cents, position) VALUES
+  (lower(hex(randomblob(16))), 'Consulta y examen clínico', 'Diagnóstico y prevención', 0, 1),
+  (lower(hex(randomblob(16))), 'Radiografía periapical', 'Diagnóstico y prevención', 0, 2),
+  (lower(hex(randomblob(16))), 'Radiografía panorámica', 'Diagnóstico y prevención', 0, 3),
+  (lower(hex(randomblob(16))), 'Limpieza dental (profilaxis)', 'Diagnóstico y prevención', 0, 4),
+  (lower(hex(randomblob(16))), 'Destartraje (limpieza de sarro)', 'Diagnóstico y prevención', 0, 5),
+  (lower(hex(randomblob(16))), 'Aplicación de flúor', 'Diagnóstico y prevención', 0, 6),
+  (lower(hex(randomblob(16))), 'Sellador de fosas y fisuras', 'Diagnóstico y prevención', 0, 7),
+  (lower(hex(randomblob(16))), 'Blanqueamiento dental', 'Diagnóstico y prevención', 0, 8),
+  (lower(hex(randomblob(16))), 'Restauración con resina (1 cara)', 'Operatoria', 0, 9),
+  (lower(hex(randomblob(16))), 'Restauración con resina (2 caras)', 'Operatoria', 0, 10),
+  (lower(hex(randomblob(16))), 'Restauración con resina (3 o más caras)', 'Operatoria', 0, 11),
+  (lower(hex(randomblob(16))), 'Reconstrucción de muñón', 'Operatoria', 0, 12),
+  (lower(hex(randomblob(16))), 'Carilla de resina', 'Operatoria', 0, 13),
+  (lower(hex(randomblob(16))), 'Tratamiento de conducto unirradicular', 'Endodoncia', 0, 14),
+  (lower(hex(randomblob(16))), 'Tratamiento de conducto birradicular', 'Endodoncia', 0, 15),
+  (lower(hex(randomblob(16))), 'Tratamiento de conducto multirradicular', 'Endodoncia', 0, 16),
+  (lower(hex(randomblob(16))), 'Retratamiento de conducto', 'Endodoncia', 0, 17),
+  (lower(hex(randomblob(16))), 'Poste o perno', 'Endodoncia', 0, 18),
+  (lower(hex(randomblob(16))), 'Extracción simple', 'Cirugía', 0, 19),
+  (lower(hex(randomblob(16))), 'Extracción quirúrgica', 'Cirugía', 0, 20),
+  (lower(hex(randomblob(16))), 'Extracción de muela del juicio', 'Cirugía', 0, 21),
+  (lower(hex(randomblob(16))), 'Implante dental (colocación)', 'Cirugía', 0, 22),
+  (lower(hex(randomblob(16))), 'Injerto óseo', 'Cirugía', 0, 23),
+  (lower(hex(randomblob(16))), 'Elevación de seno maxilar', 'Cirugía', 0, 24),
+  (lower(hex(randomblob(16))), 'Raspaje y alisado radicular (por cuadrante)', 'Periodoncia', 0, 25),
+  (lower(hex(randomblob(16))), 'Cirugía periodontal', 'Periodoncia', 0, 26),
+  (lower(hex(randomblob(16))), 'Gingivectomía', 'Periodoncia', 0, 27),
+  (lower(hex(randomblob(16))), 'Corona de porcelana sobre metal', 'Prótesis y estética', 0, 28),
+  (lower(hex(randomblob(16))), 'Corona de zirconio', 'Prótesis y estética', 0, 29),
+  (lower(hex(randomblob(16))), 'Corona provisoria', 'Prótesis y estética', 0, 30),
+  (lower(hex(randomblob(16))), 'Carilla de porcelana', 'Prótesis y estética', 0, 31),
+  (lower(hex(randomblob(16))), 'Incrustación (inlay/onlay)', 'Prótesis y estética', 0, 32),
+  (lower(hex(randomblob(16))), 'Puente fijo (por pieza)', 'Prótesis y estética', 0, 33),
+  (lower(hex(randomblob(16))), 'Prótesis removible parcial', 'Prótesis y estética', 0, 34),
+  (lower(hex(randomblob(16))), 'Prótesis total (dentadura completa)', 'Prótesis y estética', 0, 35),
+  (lower(hex(randomblob(16))), 'Estudio de ortodoncia', 'Ortodoncia', 0, 36),
+  (lower(hex(randomblob(16))), 'Ortodoncia con brackets (tratamiento completo)', 'Ortodoncia', 0, 37),
+  (lower(hex(randomblob(16))), 'Control mensual de ortodoncia', 'Ortodoncia', 0, 38),
+  (lower(hex(randomblob(16))), 'Alineadores transparentes', 'Ortodoncia', 0, 39),
+  (lower(hex(randomblob(16))), 'Retenedor', 'Ortodoncia', 0, 40),
+  (lower(hex(randomblob(16))), 'Placa de relajación (bruxismo)', 'Otros', 0, 41),
+  (lower(hex(randomblob(16))), 'Consulta de urgencia', 'Otros', 0, 42),
+  (lower(hex(randomblob(16))), 'Control y seguimiento', 'Otros', 0, 43);

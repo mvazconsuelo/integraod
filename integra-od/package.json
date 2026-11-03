@@ -1,0 +1,17 @@
+{
+  "name": "integra-od",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev -c worker/wrangler.toml -c ../payments/wrangler.toml --persist-to ../.dev-state",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "deploy": "npm run build && npm run deploy --prefix worker",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck --prefix worker && npm run typecheck --prefix frontend",
+    "migrate:local": "npm run migrate:local --prefix ../payments && npm run migrate:local --prefix worker",
+    "migrate:remote": "npm run migrate:remote --prefix worker",
+    "dev:split": "concurrently -n pagos,app -c yellow,cyan \"npm run dev --prefix ../payments\" \"wrangler dev -c worker/wrangler.toml --persist-to ../.dev-state --var PAYMENTS_URL:http://localhost:8788\"",
+    "cron": "curl -s -X POST \"localhost:8787/cdn-cgi/local/explorer/api/local/scheduled?worker=clinic-payments\" -H \"Content-Type: application/json\" -d '{\"cron\":\"* * * * *\"}'"
+  }
+}

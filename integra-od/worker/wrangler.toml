@@ -1,0 +1,30 @@
+name = "integra-od"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+
+# Quién es esta app ante el servicio de pagos (se da de alta allá con `npm run client -w payments`).
+# Puertos de desarrollo: cada app usa los suyos para poder correr varias a la vez.
+[dev]
+port = 8787
+inspector_port = 9229
+
+[vars]
+PAYMENTS_CLIENT_ID = "integra-od"
+
+[assets]
+directory = "../frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "integra-od"
+database_id = "REEMPLAZAR_CON_EL_ID_DE_integra-od"
+migrations_dir = "migrations"
+
+# Servicio de pagos: Worker independiente (ver ../payments/). Se habla por un binding privado, sin pasar por internet.
+# En local, `npm run dev` levanta los dos workers juntos para que este binding sea el real. Para desplegar, primero `payments`.
+[[services]]
+binding = "PAYMENTS"
+service = "clinic-payments"
