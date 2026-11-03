@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const budgetFormSchema = z.object({
-  patient_ref: z.string().trim().min(1, "Elegí o creá al contacto."),
-  patient_id: z.string().min(1, "Elegí o creá al contacto."),
+  patient_ref: z.string().trim().min(1, "Elegí o creá al cliente."),
+  patient_id: z.string().min(1, "Elegí o creá al cliente."),
   issued_on: z.string().min(1, "Elegí la fecha de emisión."),
   valid_until: z.string(),
   notes: z.string().max(2000),

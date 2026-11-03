@@ -1,5 +1,5 @@
 /**
- * Destinos de pago permitidos en la página que ve el contacto. El servicio de pagos ya valida el link al crearlo;
+ * Destinos de pago permitidos en la página que ve el cliente. El servicio de pagos ya valida el link al crearlo;
  * esto es una segunda barrera por si algún dato se alterara: el botón "Pagar" nunca lleva a un dominio ajeno.
  * Al sumar un proveedor nuevo, agregar acá su dominio.
  */

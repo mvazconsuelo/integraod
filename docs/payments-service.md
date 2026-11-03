@@ -26,7 +26,7 @@ cuenta de proveedor. Ningún cliente puede ver ni tocar lo de otro.
 | Credenciales de proveedores (cifradas) | ❌ nunca las ve | ✅ |
 | Webhooks, conciliación, cola de revisión, bitácora de auditoría | — | ✅ |
 
-El servicio **no sabe qué es un presupuesto ni un contacto**: recibe una `reference` opaca (hoy, el id del presupuesto) y un texto para el
+El servicio **no sabe qué es un presupuesto ni una persona**: recibe una `reference` opaca (hoy, el id del presupuesto) y un texto para el
 pagador. Puede cobrar cualquier cosa.
 
 ## Clientes (las apps que usan el servicio)

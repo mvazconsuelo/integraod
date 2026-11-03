@@ -13,9 +13,9 @@ const lines = (csv: string) => csv.replace("\uFEFF", "").trim().split("\r\n");
 
 describe("CSV para Excel", () => {
   it("usa ; como separador, coma decimal y BOM para las tildes", () => {
-    const csv = toCsv([["Contacto", "Importe"], ["Pérez, Ana", csvMoney(150050)]]);
+    const csv = toCsv([["Cliente", "Importe"], ["Pérez, Ana", csvMoney(150050)]]);
     expect(csv.startsWith("\uFEFF")).toBe(true);
-    expect(lines(csv)).toEqual(["Contacto;Importe", "Pérez, Ana;1500,50"]);
+    expect(lines(csv)).toEqual(["Cliente;Importe", "Pérez, Ana;1500,50"]);
   });
   it("escapa comillas, saltos de línea y separadores dentro del texto", () => {
     expect(lines(toCsv([['dijo "hola"; adiós', "línea 1\nlínea 2"]]))[0]).toBe('"dijo ""hola""; adiós";"línea 1\nlínea 2"');
@@ -37,7 +37,7 @@ describe("reportes del período", () => {
   it("cobros: solo los del rango, con el presupuesto y el total", async () => {
     await setup();
     const rows = lines(await paymentsCsv(db, "2026-11-01", "2026-11-30"));
-    expect(rows[0]).toBe("Fecha;Contacto;Concepto;Medio;Importe;Comisión;Te quedó;Estado;Origen;Presupuesto N°;Sin usar");
+    expect(rows[0]).toBe("Fecha;Cliente;Concepto;Medio;Importe;Comisión;Te quedó;Estado;Origen;Presupuesto N°;Sin usar");
     expect(rows[1]).toBe("2026-11-06;Ana Pérez;Anticipo · T;Efectivo;30000,00;0,00;30000,00;Cobrado;Carga manual;0001;0,00"); // efectivo: sin comisión, te quedó todo
     expect(rows).toHaveLength(3);
     expect(rows[2]).toContain("TOTAL COBRADO;;30000,00;0,00;30000,00");
@@ -84,7 +84,7 @@ describe("rutas de reportes (HTTP)", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/csv");
     expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="cobros_2026-11-01_a_2026-11-30.csv"');
-    expect((await res.text()).replace("﻿", "")).toContain("Fecha;Contacto;Concepto");
+    expect((await res.text()).replace("﻿", "")).toContain("Fecha;Cliente;Concepto");
   });
   it("las tres rutas responden y un rango inválido da un error claro, no un 500", async () => {
     for (const name of ["cobros", "presupuestos"]) expect((await call(`/api/reports/${name}?from=2026-11-01&to=2026-11-30`)).status).toBe(200);

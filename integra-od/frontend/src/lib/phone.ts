@@ -41,3 +41,17 @@ export function formatPhone(digits: string): string {
 
 /** Link que abre WhatsApp con el mensaje escrito. Con teléfono, abre directo el chat de esa persona. */
 export const whatsappUrl = (phone: string | null | undefined, text: string) => `https://wa.me/${phone ?? ""}?text=${encodeURIComponent(text)}`;
+
+/** Por qué no se entiende un teléfono, dicho con claridad (o null si está bien). Para Argentina: código de área + número = 10 cifras. */
+export function phoneError(raw: string): string | null {
+  if (normalizePhone(raw)) return null;
+  if (/[A-Za-z]/.test(raw)) return "El teléfono tiene que tener solo números.";
+  let local = raw.replace(/\D/g, "");
+  if (local.startsWith("00")) local = local.slice(2);
+  if (local.startsWith("54")) local = local.slice(2);
+  if (local.startsWith("9") && local.length > 10) local = local.slice(1);
+  if (local.startsWith("0")) local = local.slice(1);
+  if (local.length < 10) return `Faltan números: con el código de área son 10 (sin el 0 ni el 15) y escribiste ${local.length}. Ej.: 261 334 4477.`;
+  if (local.length > 10) return `Sobran números: con el código de área son 10 (sin el 0 ni el 15) y escribiste ${local.length}.`;
+  return "No entendimos ese teléfono. Escribilo con el código de área, por ejemplo 261 334 4477.";
+}

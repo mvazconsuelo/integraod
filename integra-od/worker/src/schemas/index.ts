@@ -3,7 +3,7 @@ import { z } from "zod";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida.");
 const cents = z.number().int("Importe inválido.").positive("El importe debe ser mayor a cero.");
-const ref = z.string().trim().min(1, "Ingresá el nombre o referencia del contacto.").max(120);
+const ref = z.string().trim().min(1, "Ingresá el nombre o referencia del cliente.").max(120);
 
 export const budgetItemSchema = z.object({
   description: z.string().trim().min(1, "Escribí o elegí el concepto.").max(200),
@@ -14,7 +14,7 @@ export const budgetItemSchema = z.object({
 
 export const budgetSchema = z.object({
   patient_ref: ref,
-  /** El contacto elegido de la lista (con su teléfono). Sin él se usa el nombre. */
+  /** El cliente elegido de la lista (con su teléfono). Sin él se usa el nombre. */
   patient_id: z.string().max(64).nullish(),
   issued_on: date,
   valid_until: date.nullable().default(null),
@@ -95,12 +95,13 @@ export const mockCheckoutSchema = z.object({ outcome: z.enum(["approved", "rejec
 export const rangeSchema = z.object({ from: date, to: date });
 
 export const patientCreateSchema = z.object({
-  name: z.string().trim().min(1, "Escribí el nombre completo del contacto.").max(120),
-  phone: z.string().trim().min(1, "Escribí el teléfono del contacto.").max(40),
+  name: z.string().trim().min(1, "Escribí el nombre completo del cliente.").max(120),
+  /** Opcional: solo hace falta para escribirle por WhatsApp. */
+  phone: z.string().trim().max(40).default(""),
   allow_duplicate_phone: z.boolean().default(false),
 });
 export const patientUpdateSchema = z.object({
-  name: z.string().trim().min(1, "Escribí el nombre completo del contacto.").max(120).optional(),
-  phone: z.string().trim().min(1, "Escribí el teléfono del contacto.").max(40).optional(),
+  name: z.string().trim().min(1, "Escribí el nombre completo del cliente.").max(120).optional(),
+  phone: z.string().trim().max(40).optional(),
   allow_duplicate_phone: z.boolean().default(false),
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { Phone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,13 +6,17 @@ import { Floating } from "@/components/ui/floating";
 import { Field } from "@/components/shared/Field";
 import { useApi } from "@/hooks/useApi";
 import { api, ApiError } from "@/lib/api";
-import { NameFields, PHONE_START, joinName, splitName } from "@/components/shared/NameFields";
-import { formatPhone, normalizePhone } from "@/lib/phone";
+import { NameFields, PHONE_START, joinName, phoneOrEmpty, splitName } from "@/components/shared/NameFields";
+import { formatPhone, phoneError } from "@/lib/phone";
 import type { Contact } from "@/types";
 
 export interface PickedPatient { id: string; name: string }
 
+export interface PickerHandle { /** Hay un cliente nuevo a medio cargar. */ hasDraft: () => boolean; /** Lo guarda; true si quedó guardado y elegido. */ save: () => Promise<boolean> }
+
 interface Props {
+  /** Para que quien lo usa pueda guardar el cliente nuevo al tocar "Continuar". */
+  handle?: Ref<PickerHandle>;
   value: PickedPatient;
   onChange: (p: PickedPatient) => void;
   error?: string;
@@ -22,15 +26,15 @@ interface Props {
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 /**
- * Elegir un contacto de la lista o cargarlo en el momento (nombre completo y teléfono, los dos obligatorios).
+ * Elegir un cliente de la lista o cargarlo en el momento (nombre completo y teléfono, los dos obligatorios).
  * Queda guardado: la próxima vez aparece al escribir las primeras letras, con su teléfono.
  */
-export function PatientPicker({ value, onChange, error, autoFocus }: Props) {
+export function PatientPicker({ value, onChange, error, autoFocus, handle }: Props) {
   const contacts = useApi<Contact[]>("/patients/contacts");
   const list = contacts.data ?? [];
   const [query, setQuery] = useState(value.id ? "" : value.name);
   const [open, setOpen] = useState(false);
-  // Alta de un contacto nuevo, o teléfono que le falta a uno ya guardado.
+  // Alta de un cliente nuevo, o teléfono que le falta a uno ya guardado.
   const [draft, setDraft] = useState<{ id: string | null; name: string; first: string; last: string; phone: string } | null>(null);
   const [formError, setFormError] = useState("");
   const [duplicate, setDuplicate] = useState(false);
@@ -58,46 +62,45 @@ export function PatientPicker({ value, onChange, error, autoFocus }: Props) {
 
   const pick = (c: Contact) => {
     setOpen(false);
-    if (c.phone) { setQuery(""); onChange({ id: c.id, name: c.name }); return; }
-    setFormError(""); setDuplicate(false);
-    setDraft({ id: c.id, name: c.name, first: "", last: "", phone: PHONE_START });
+    setQuery(""); onChange({ id: c.id, name: c.name }); // el teléfono se pide recién al compartir
   };
 
-  const save = async (allowDuplicate = false) => {
-    if (!draft) return;
-    if (!draft.id && (!draft.first.trim() || !draft.last.trim())) return setFormError("Escribí nombre y apellido.");
-    const name = draft.id ? draft.name : joinName(draft.first, draft.last);
-    if (!normalizePhone(draft.phone)) return setFormError("Ingresá un teléfono válido, con característica. Ej.: 351 555 0123.");
+  const save = async (allowDuplicate = false): Promise<boolean> => {
+    if (!draft) return false;
+    if (!draft.first.trim() || !draft.last.trim()) { setFormError("Escribí nombre y apellido."); return false; }
+    const name = joinName(draft.first, draft.last);
+    const phone = phoneOrEmpty(draft.phone);
+    const problem = phone ? phoneError(phone) : null;
+    if (problem) { setFormError(problem); return false; }
     setBusy(true); setFormError("");
     try {
-      const body = { name, phone: draft.phone, allow_duplicate_phone: allowDuplicate };
-      const saved = draft.id
-        ? await api<Contact>(`/patients/${draft.id}`, { method: "PUT", body })
-        : await api<Contact>("/patients", { body });
+      const saved = await api<Contact>("/patients", { body: { name, phone, allow_duplicate_phone: allowDuplicate } });
       await contacts.reload();
       setDraft(null); setQuery(""); setDuplicate(false);
       onChange({ id: saved.id, name: saved.name });
+      return true;
     } catch (e) {
       if (e instanceof ApiError && e.code === "phone_in_use") setDuplicate(true);
-      setFormError(e instanceof Error ? e.message : "No pudimos guardar al contacto.");
+      setFormError(e instanceof Error ? e.message : "No pudimos guardar al cliente.");
+      return false;
     } finally { setBusy(false); }
   };
+
+  useImperativeHandle(handle, () => ({ hasDraft: () => draft !== null, save: () => save() }));
 
   if (draft) {
     return (
       <div className="space-y-3 rounded-lg border border-dashed bg-soft/40 p-3" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void save(); } }}>
-        <p className="text-sm font-medium">{draft.id ? `Falta el teléfono de ${draft.name}` : "Contacto nuevo"}</p>
-        {!draft.id && (
+        <p className="text-sm font-medium">Cliente nuevo</p>
         <NameFields autoFocus first={draft.first} last={draft.last} onChange={(n) => setDraft({ ...draft, ...n })} />
-        )}
-        <Field required label="Teléfono (WhatsApp)" hint="Con característica, sin 0 ni 15. Sirve para enviarle el presupuesto.">
-          <Input autoComplete="off" inputMode="tel" autoFocus={!!draft.id} value={draft.phone} onChange={(e) => { setDraft({ ...draft, phone: e.target.value }); setDuplicate(false); }} placeholder="351 555 0123" />
+        <Field label="Teléfono (opcional)" hint="Solo hace falta para enviarle el presupuesto por WhatsApp.">
+          <Input autoComplete="off" inputMode="tel" value={draft.phone} onChange={(e) => { setDraft({ ...draft, phone: e.target.value }); setDuplicate(false); }} placeholder="351 555 0123" />
         </Field>
         {formError && <p role="alert" className="text-xs text-danger">{formError}</p>}
         <div className="flex flex-wrap gap-2">
           {duplicate
             ? <Button type="button" size="sm" disabled={busy} onClick={() => void save(true)}>Guardar igual</Button>
-            : <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>Guardar contacto</Button>}
+            : <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>Guardar cliente</Button>}
           <Button type="button" size="sm" variant="ghost" onClick={() => { setDraft(null); setFormError(""); setDuplicate(false); }}>Cancelar</Button>
         </div>
       </div>
@@ -108,7 +111,7 @@ export function PatientPicker({ value, onChange, error, autoFocus }: Props) {
     const name = selected?.name ?? value.name;
     const phone = selected?.phone_display;
     return (
-      <Field plain required label="Contacto">
+      <Field plain required label="Cliente">
         <div className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{name}</p>
@@ -121,7 +124,7 @@ export function PatientPicker({ value, onChange, error, autoFocus }: Props) {
   }
 
   return (
-    <Field required label="Contacto" error={error} hint="Buscá por nombre o teléfono. Si es nuevo, lo cargás acá mismo.">
+    <Field required label="Cliente" error={error} hint="Buscá por nombre. Si es nuevo, lo cargás acá mismo.">
       <div ref={root} className="relative">
         <Input
           autoFocus={autoFocus} autoComplete="off" value={query} placeholder="Nombre y apellido"

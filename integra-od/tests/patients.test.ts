@@ -15,8 +15,8 @@ const budget = async (patient: string, total: number) => {
 const pay = (patient: string, budgetId: string, amount: number) =>
   payments.registerManualPayment(stack.core, { patient_ref: patient, concept: "Pago", amount_cents: amount, method: "cash", kind: "advance", budget_id: budgetId, request_id: null, notes: "" });
 
-describe("ficha de contacto", () => {
-  it("reúne presupuestos y pagos de un mismo contacto sin distinguir mayúsculas ni espacios", async () => {
+describe("ficha de cliente", () => {
+  it("reúne presupuestos y pagos de un mismo cliente sin distinguir mayúsculas ni espacios", async () => {
     const a = await budget("Ana Pérez", 10_000_000);
     const b = await budget("  ana pérez ", 5_000_000);
     await pay("Ana Pérez", a, 3_000_000);
@@ -29,7 +29,7 @@ describe("ficha de contacto", () => {
     expect(b).toBeTruthy();
   });
 
-  it("el listado resume por contacto y no mezcla a otros", async () => {
+  it("el listado resume por cliente y no mezcla a otros", async () => {
     const a = await budget("Ana", 10_000_000);
     await pay("Ana", a, 4_000_000);
     await budget("Luis", 2_000_000);
@@ -39,7 +39,7 @@ describe("ficha de contacto", () => {
     expect(ana).toMatchObject({ budgets_count: 1, budgeted_cents: 10_000_000, applied_cents: 4_000_000, balance_cents: 6_000_000 });
   });
 
-  it("los presupuestos cancelados no suman y un contacto inexistente da error claro", async () => {
+  it("los presupuestos cancelados no suman y un cliente inexistente da error claro", async () => {
     const id = await budget("Ana", 1_000_000);
     await budgets.changeStatus(db, id, "cancelled");
     expect((await getPatientDetail(db, "Ana")).totals.budgeted_cents).toBe(0);

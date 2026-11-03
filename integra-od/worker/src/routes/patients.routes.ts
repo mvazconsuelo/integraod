@@ -10,7 +10,7 @@ patients.get("/", async (c) => c.json(await listPatients(c.env.DB)));
 // El nombre va en la query (admite espacios y tildes).
 patients.get("/detail", async (c) => c.json(await getPatientDetail(c.env.DB, c.req.query("name") ?? "")));
 
-// Contactos: la lista para el buscador (nombre y teléfono), y alta y edición.
+// Clientes: la lista para el buscador (nombre y teléfono), y alta y edición.
 patients.get("/contacts", async (c) => c.json(await listContacts(c.env.DB)));
 patients.post("/", async (c) => c.json(await createPatient(c.env.DB, await parseBody(c, patientCreateSchema)), 201));
 patients.delete("/:id", async (c) => { await deletePatient(c.env.DB, c.req.param("id")); return c.body(null, 204); });

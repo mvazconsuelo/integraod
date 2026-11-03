@@ -5,16 +5,28 @@ import { addDays, previousRange, todayLocal, tzOffsetSql } from "../utils/dates"
 const REAL = "p.provider <> 'mock'";
 
 /**
- * Las definiciones del Resumen (una sola vez, acá):
- *  - Cobrado: pagos aprobados y reales, por día de cobro dentro del período.
- *  - Por cobrar: saldo de los presupuestos En curso.
- *  - Anticipos pedidos / cobrados: cobros de tipo anticipo creados / pagos de tipo anticipo recibidos en el período.
+ * Las definiciones del Resumen y de Control (una sola vez, acá). Todo en centavos enteros; nada simulado cuenta.
+ *  - Recibido: pagos aprobados y reales, por día de cobro dentro del período.
+ *  - Por cobrar (saldo de hoy): lo que falta de los presupuestos En curso. No es la suma de pedidos abiertos.
+ *  - Presupuestos emitidos: los creados en el período, por su fecha de emisión (compartirlos ocurre fuera del sistema: no se registra el envío).
+ *  - Trabajos concretados: presupuestos cuyo PRIMER pago real confirmado cayó en el período (un presupuesto se acepta pagando).
+ *  - Importe promedio: promedio del total de esos presupuestos concretados.
+ *  - Tasa de aceptación: de los emitidos en el período que ya tuvieron respuesta, cuántos se aceptaron:
+ *    aceptados ÷ (aceptados + cancelados). Los que esperan respuesta no entran.
+ *  - Trabajos con saldo (de hoy): presupuestos En curso.
+ *  - Pagos recibidos: cantidad de pagos aprobados y reales del período (cada pago cuenta una vez).
+ *  - Anticipos recibidos: presupuestos con un anticipo real confirmado en el período.
  *  - Sin presupuesto: pagos aprobados y reales que todavía no se aplicaron a ningún presupuesto.
- *  - Pagos parciales: pagos aprobados y reales de tipo parcial recibidos en el período (el anticipo y el pago final se cuentan aparte).
- *  - Presupuestado: total de los presupuestos emitidos en el período, sin los cancelados.
- *  - Ticket promedio: presupuestado ÷ cantidad de presupuestos emitidos.
- *  - Tasa de aceptación: de los presupuestos emitidos en el período, cuántos ya recibieron al menos un pago (un presupuesto se acepta pagando).
  */
+// Cada presupuesto con su fecha de aceptación: el primer pago real confirmado que se le aplicó (sin anulaciones ni cancelados).
+const ACCEPTED = `accepted AS (
+  SELECT b.id AS id, b.total_cents AS total_cents, MIN(p.paid_at) AS accepted_at
+  FROM budgets b
+  JOIN payment_applications a ON a.budget_id = b.id AND a.voided_at IS NULL
+  JOIN payments p ON p.id = a.payment_id AND p.status = 'approved' AND p.provider <> 'mock'
+  WHERE b.status <> 'cancelled'
+  GROUP BY b.id
+)`;
 
 export async function getSummary(db: D1Database, from: string, to: string) {
   const today = todayLocal();
@@ -24,12 +36,12 @@ export async function getSummary(db: D1Database, from: string, to: string) {
     .prepare(
       `SELECT COALESCE(SUM(amount_cents),0) AS total,
               COALESCE(SUM(CASE WHEN kind='advance' THEN amount_cents END),0) AS advances,
-              COALESCE(SUM(CASE WHEN kind='partial' THEN amount_cents END),0) AS partials,
+              COUNT(*) AS payments_count,
               COALESCE(SUM(fee_cents),0) AS fees
        FROM payments p WHERE status='approved' AND ${REAL} AND ${LOCAL_DAY} BETWEEN ? AND ?`,
     )
     .bind(from, to)
-    .first<{ total: number; advances: number; partials: number; fees: number }>();
+    .first<{ total: number; advances: number; payments_count: number; fees: number }>();
 
   const clinic = await db.prepare("SELECT name FROM clinic_settings WHERE id = 1").first<{ name: string }>();
   const counts = await db
@@ -86,9 +98,37 @@ export async function getSummary(db: D1Database, from: string, to: string) {
     .first<{ balance: number }>();
 
   const issued = await db
-    .prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(total_cents),0) AS total, COALESCE(SUM(CASE WHEN status IN ('in_progress','completed') THEN 1 END),0) AS accepted FROM budgets WHERE status <> 'cancelled' AND issued_on BETWEEN ? AND ?`)
+    .prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN total_cents END),0) AS total, COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN 1 END),0) AS live FROM budgets WHERE issued_on BETWEEN ? AND ?`)
     .bind(from, to)
-    .first<{ count: number; total: number; accepted: number }>();
+    .first<{ count: number; total: number; live: number }>();
+
+  const concreted = await db
+    .prepare(`WITH ${ACCEPTED} SELECT COUNT(*) AS count, COALESCE(SUM(total_cents),0) AS total FROM accepted WHERE date(accepted_at, '${tzOffsetSql()}') BETWEEN ? AND ?`)
+    .bind(from, to)
+    .first<{ count: number; total: number }>();
+
+  // Respuesta de los emitidos en el período: aceptados (pagaron), cancelados, o todavía esperando.
+  const answered = await db
+    .prepare(
+      `WITH ${ACCEPTED}
+       SELECT COUNT(*) AS emitted,
+              COALESCE(SUM(CASE WHEN b.id IN (SELECT id FROM accepted) THEN 1 END),0) AS accepted,
+              COALESCE(SUM(CASE WHEN b.status = 'cancelled' THEN 1 END),0) AS declined
+       FROM budgets b WHERE b.issued_on BETWEEN ? AND ?`,
+    )
+    .bind(from, to)
+    .first<{ emitted: number; accepted: number; declined: number }>();
+
+  const advancesReceived = await db
+    .prepare(
+      `SELECT COUNT(DISTINCT a.budget_id) AS count
+       FROM payment_applications a JOIN payments p ON p.id = a.payment_id
+       WHERE a.voided_at IS NULL AND p.status = 'approved' AND p.kind = 'advance' AND ${REAL} AND ${LOCAL_DAY} BETWEEN ? AND ?`,
+    )
+    .bind(from, to)
+    .first<{ count: number }>();
+
+  const openJobs = await db.prepare("SELECT COUNT(*) AS count FROM budgets WHERE status = 'in_progress'").first<{ count: number }>();
 
   const { results: byMethod } = await db
     .prepare(`SELECT method, SUM(amount_cents) AS total_cents FROM payments p WHERE status='approved' AND ${REAL} AND ${LOCAL_DAY} BETWEEN ? AND ? GROUP BY method ORDER BY total_cents DESC`)
@@ -125,10 +165,20 @@ export async function getSummary(db: D1Database, from: string, to: string) {
     money_unapplied_cents: unapplied!.total,
     pending_requests: requests!,
     budgets_balance_cents: budgetsOpen!.balance,
-    budgets_issued: { count: issued!.count, total: issued!.total },
-    average_ticket_cents: issued!.count > 0 ? Math.round(issued!.total / issued!.count) : null,
-    acceptance: { issued: issued!.count, accepted: issued!.accepted, rate_pct: issued!.count > 0 ? Math.round((issued!.accepted * 100) / issued!.count) : null },
-    partials_collected_cents: collected!.partials,
+    budgets_issued: { count: issued!.live, total: issued!.total },
+    budgets_emitted_count: issued!.count,
+    jobs_concreted: { count: concreted!.count, total_cents: concreted!.total },
+    average_job_cents: concreted!.count > 0 ? Math.round(concreted!.total / concreted!.count) : null,
+    acceptance: {
+      emitted: answered!.emitted,
+      accepted: answered!.accepted,
+      declined: answered!.declined,
+      waiting: answered!.emitted - answered!.accepted - answered!.declined,
+      rate_pct: answered!.accepted + answered!.declined > 0 ? Math.round((answered!.accepted * 100) / (answered!.accepted + answered!.declined)) : null,
+    },
+    open_jobs_count: openJobs!.count,
+    payments_count: collected!.payments_count,
+    advances_received_count: advancesReceived!.count,
     by_method: byMethod,
     monthly,
   };

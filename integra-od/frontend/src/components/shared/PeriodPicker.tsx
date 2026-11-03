@@ -3,7 +3,7 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { PERIODS, resolveRange, type Period, type PeriodValue } from "@/lib/period";
 
 /** Elegir el período: uno rápido o los días que quiera, con fechas desde / hasta. */
-export function PeriodPicker({ value, onChange }: { value: PeriodValue; onChange: (v: PeriodValue) => void }) {
+export function PeriodPicker({ value, onChange, options = PERIODS }: { value: PeriodValue; onChange: (v: PeriodValue) => void; /** Los períodos que se ofrecen (por defecto, todos). */ options?: { value: Period; label: string }[] }) {
   const invalid = value.period === "custom" && resolveRange(value) === null;
   return (
     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-end">
@@ -11,7 +11,7 @@ export function PeriodPicker({ value, onChange }: { value: PeriodValue; onChange
         <Dropdown
           searchable={false} ariaLabel="Período" value={value.period} placeholder="Elegí un período"
           onChange={(v) => onChange({ ...value, period: v as Period })}
-          options={PERIODS.map((p) => ({ value: p.value, label: p.label }))}
+          options={options.map((p) => ({ value: p.value, label: p.label }))}
         />
       </div>
       {value.period === "custom" && (

@@ -4,7 +4,7 @@ Esta carpeta (`integra-od/`) es **una app completa**: se copia y se renombra par
 El servicio de pagos (`../payments/`) es compartido y vive afuera. Dentro de la app:
 
 - `frontend/` React 19 + Vite + Tailwind 4. Se publica como assets del Worker de la app (mismo origen).
-- `worker/` **La app**: presupuestos, contactos, reglas del negocio y la interfaz. Hono sobre Cloudflare Workers + D1.
+- `worker/` **La app**: presupuestos, clientes, reglas del negocio y la interfaz. Hono sobre Cloudflare Workers + D1.
 - `tests/` Vitest. La app se prueba sobre SQL real (`node:sqlite` adaptado a D1) y también **junto con el servicio de pagos** (`tests/helpers/stack.ts`). El servicio de pagos tiene sus propios tests en `payments/tests/`.
 
 La app habla con el servicio de pagos solo por una API interna **firmada**; el servicio le avisa los cambios con avisos firmados.

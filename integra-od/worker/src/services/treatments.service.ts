@@ -11,6 +11,26 @@ export interface Treatment {
 
 interface TreatmentInput { name: string; category: string; price_cents: number }
 
+/**
+ * Los trabajos que ya presupuestaste, del más reciente al más viejo, con el último precio usado:
+ * así el campo "¿Qué trabajo es?" sugiere lo tuyo sin cargar ningún listado antes.
+ */
+export async function listRecentWork(db: D1Database, limit = 40) {
+  const { results } = await db
+    .prepare("SELECT i.description AS name, i.unit_price_cents AS price_cents FROM budget_items i JOIN budgets b ON b.id = i.budget_id ORDER BY b.created_at DESC, i.position")
+    .all<{ name: string; price_cents: number }>();
+  const seen = new Set<string>();
+  const out: { name: string; price_cents: number }[] = [];
+  for (const r of results) {
+    const key = r.name.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name: r.name.trim(), price_cents: r.price_cents });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 export async function listTreatments(db: D1Database) {
   const { results } = await db.prepare("SELECT * FROM treatments ORDER BY position, name").all<Treatment>();
   return results;

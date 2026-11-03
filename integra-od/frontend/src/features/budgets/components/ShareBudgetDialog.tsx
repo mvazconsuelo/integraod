@@ -7,14 +7,14 @@ import { Field } from "@/components/shared/Field";
 import { PHONE_START } from "@/components/shared/NameFields";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/lib/currency";
-import { formatPhone, normalizePhone, whatsappUrl } from "@/lib/phone";
+import { formatPhone, normalizePhone, phoneError, whatsappUrl } from "@/lib/phone";
 import { budgetMessage } from "@/lib/whatsapp";
 import { publicLink } from "@/features/payments/services/payments.service";
 import type { BudgetDetail, Contact, Settings } from "@/types";
 
 interface Props { open: boolean; onOpenChange: (o: boolean) => void; budget: BudgetDetail; settings: Settings; onDownload: () => void; onChanged: () => void }
 
-/** Abre WhatsApp con el mensaje listo para el contacto. El PDF se adjunta aparte: se descarga y se suma en el chat. */
+/** Abre WhatsApp con el mensaje listo para el cliente. El PDF se adjunta aparte: se descarga y se suma en el chat. */
 export function ShareBudgetDialog({ open, onOpenChange, budget: b, settings, onDownload, onChanged }: Props) {
   const clinic = settings.name;
   const phone = b.patient_phone;
@@ -30,7 +30,7 @@ export function ShareBudgetDialog({ open, onOpenChange, budget: b, settings, onD
     let digits = phone;
     if (!digits) {
       digits = normalizePhone(newPhone);
-      if (!digits) return setError("Ingresá un teléfono válido, con característica. Ej.: 351 555 0123.");
+      if (!digits) return setError(phoneError(newPhone) ?? "Ingresá el teléfono del cliente.");
     }
     // WhatsApp se abre ya, en el mismo toque: si se espera a la red, el navegador bloquea la ventana.
     const win = window.open("", "_blank");

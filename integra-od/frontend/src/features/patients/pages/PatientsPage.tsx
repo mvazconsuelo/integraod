@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MessageCircle, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { MessageCircle, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { Avatar } from "@/components/shared/Avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { BackLink } from "@/components/shared/BackLink";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorMessage, Loading } from "@/components/feedback/ErrorMessage";
 import { useApi } from "@/hooks/useApi";
@@ -18,7 +18,7 @@ import type { Contact } from "@/types";
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-/** La agenda: los contactos con su teléfono. Se agregan, se editan y se borran acá. */
+/** La agenda: los clientes con su teléfono. Se agregan, se editan y se borran acá. */
 export function PatientsPage() {
   const { data, error, loading, reload } = useApi<Contact[]>("/patients/contacts");
   const [query, setQuery] = useState("");
@@ -34,7 +34,7 @@ export function PatientsPage() {
   const remove = async () => {
     if (!removing) return;
     try { await api(`/patients/${removing.id}`, { method: "DELETE" }); setRemoving(null); await reload(); }
-    catch (e) { setRemoveError(e instanceof Error ? e.message : "No pudimos borrar al contacto."); }
+    catch (e) { setRemoveError(e instanceof Error ? e.message : "No pudimos borrar al cliente."); }
   };
 
   const Actions = ({ c }: { c: Contact }) => (
@@ -47,25 +47,25 @@ export function PatientsPage() {
 
   return (
     <>
-      <BackLink to="/">inicio</BackLink>
-      <PageHeader title="Agenda" subtitle="Tus contactos y su teléfono." action={<Button onClick={() => setDialog({})}><Plus size={16} />Nuevo contacto</Button>} />
+      <PageHeader title="Clientes" icon={Users} action={<Button onClick={() => setDialog({})}><Plus size={16} />Nuevo cliente</Button>} />
       {error && <ErrorMessage message={error} onRetry={reload} />}
       {loading && !data && <Loading />}
-      {data?.length === 0 && <EmptyState message="Todavía no cargaste contactos. Agregá el primero con «Nuevo contacto»." />}
+      {data?.length === 0 && <EmptyState message="Todavía no cargaste clientes. Agregá el primero con «Nuevo cliente»." />}
       {data && data.length > 0 && (
         <div className="space-y-4">
           <div className="relative max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <Input aria-label="Buscar contacto" placeholder="Buscar por nombre o teléfono" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+            <Input aria-label="Buscar cliente" placeholder="Buscar por nombre o teléfono" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
           </div>
-          {rows.length === 0 ? <p className="text-sm text-muted">No encontramos contactos con eso.</p> : (
-            <Card className="overflow-hidden">
+          {rows.length === 0 ? <p className="text-sm text-muted">No encontramos clientes con eso.</p> : (
+            <Card className="overflow-hidden rounded-3xl">
               <ul className="divide-y">
                 {rows.map((c) => (
-                  <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
-                    <div className="min-w-0">
-                      <Link to={patientPath(c.name)} className="block truncate font-semibold hover:underline">{c.name}</Link>
-                      <p className={c.phone ? "text-sm text-muted tabular" : "text-sm text-warning"}>{c.phone_display ?? "Sin teléfono"}</p>
+                  <li key={c.id} className="flex items-center gap-3.5 px-4 py-3.5 sm:px-5">
+                    <Avatar name={c.name} />
+                    <div className="min-w-0 flex-1">
+                      <Link to={patientPath(c.name)} className="block truncate text-[17px] font-semibold hover:underline">{c.name}</Link>
+                      <p className={c.phone ? "text-sm text-muted tabular" : "text-sm text-muted"}>{c.phone_display ?? "Sin teléfono"}</p>
                     </div>
                     <Actions c={c} />
                   </li>
@@ -77,7 +77,7 @@ export function PatientsPage() {
       )}
       {dialog && <ContactDialog open onOpenChange={(o) => !o && setDialog(null)} contact={dialog.contact} onSaved={() => void reload()} />}
       {removing && (
-        <Dialog open onOpenChange={(o) => !o && setRemoving(null)} title={`¿Borrar a ${removing.name}?`} description="Se saca de la agenda. Si ya tiene presupuestos o cobros, se conserva para no perder el historial.">
+        <Dialog open onOpenChange={(o) => !o && setRemoving(null)} title={`¿Borrar a ${removing.name}?`} description="Se saca de los clientes. Si ya tiene presupuestos o cobros, se conserva para no perder el historial.">
           {removeError && <p role="alert" className="mb-3 text-sm text-danger">{removeError}</p>}
           <div className="flex gap-3">
             <Button variant="ghost" className="flex-1" onClick={() => setRemoving(null)}>No, volver</Button>

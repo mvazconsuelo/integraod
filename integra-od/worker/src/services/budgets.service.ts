@@ -64,7 +64,7 @@ export async function updateBudget(db: D1Database, id: string, input: BudgetInpu
   if (total < current.applied_cents) {
     throw new AppError(409, "El nuevo total quedaría por debajo de lo que ya se aplicó a este presupuesto.");
   }
-  // Si el contacto no cambia, sigue el que tenía (aunque todavía no tenga teléfono: eso se pide al compartir por WhatsApp).
+  // Si el cliente no cambia, sigue el que tenía (aunque todavía no tenga teléfono: eso se pide al compartir por WhatsApp).
   const unchanged = (!input.patient_id || input.patient_id === current.patient_id) && input.patient_ref.trim() === current.patient_ref.trim();
   const patient = unchanged && current.patient_id ? { id: current.patient_id, name: current.patient_ref } : await resolvePatientForBudget(db, input);
   await repo.replaceBudget(db, { ...input, patient_ref: patient.name, patient_id: patient.id, id, total_cents: total, now: nowIso() });

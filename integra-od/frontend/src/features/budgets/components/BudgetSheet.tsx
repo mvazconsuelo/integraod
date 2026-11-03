@@ -25,7 +25,7 @@ export function BudgetSheet({ budget, settings }: { budget: BudgetDetail; settin
         </div>
       </header>
 
-      <p className="mt-5">Contacto: <strong>{budget.patient_ref}</strong></p>
+      <p className="mt-5">Cliente: <strong>{budget.patient_ref}</strong></p>
 
       <table className="w-full mt-4 border-collapse">
         <thead>

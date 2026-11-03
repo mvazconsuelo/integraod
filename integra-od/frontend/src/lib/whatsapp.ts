@@ -3,7 +3,7 @@ import { formatMoney } from "./currency";
 const plain = (s: string) => s.replace(/[\u00a0\u202f]/g, " "); // el importe trae un espacio especial: en el mensaje va uno común
 
 /**
- * El mensaje que se le manda al contacto con el presupuesto. El presupuesto en sí va como PDF adjunto (lo adjunta quien envía).
+ * El mensaje que se le manda al cliente con el presupuesto. El presupuesto en sí va como PDF adjunto (lo adjunta quien envía).
  * Con anticipo agrega el link para reservar.
  */
 export function budgetMessage(o: { patient: string; number: number; clinic: string; advance?: { amountCents: number; link: string; kind?: "advance" | "partial" | "final" } | null }): string {

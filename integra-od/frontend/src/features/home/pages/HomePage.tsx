@@ -1,21 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays, ChevronRight, FilePlus2, ListChecks, Wallet } from "lucide-react";
-import { Dropdown } from "@/components/ui/dropdown";
+import { ChevronRight, CircleAlert, FilePlus2, Hammer, Hourglass, MessageCircle, Wallet, type LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Amount } from "@/components/shared/Amount";
 import { useApi } from "@/hooks/useApi";
 import { formatMoney } from "@/lib/currency";
-import { PERIODS, resolveRange, type Period } from "@/lib/period";
+import { resolveRange } from "@/lib/period";
 import { clinicTimeZone } from "@/lib/time-zone";
-import type { Summary } from "@/types";
-
-// Los períodos rápidos (sin fechas a medida: eso se elige en Control).
-const QUICK = PERIODS.filter((p) => p.value !== "custom");
-const KEY = "integraod.home.period";
-
-const readPeriod = (): Period => {
-  try { const v = localStorage.getItem(KEY); if (QUICK.some((p) => p.value === v)) return v as Period; } catch { /* sin storage */ }
-  return "month";
-};
+import { groupWorks } from "@/lib/work-groups";
+import type { Budget, PaymentRequest, Summary } from "@/types";
 
 function greeting(): string {
   const hour = Number(new Intl.DateTimeFormat("es-AR", { hour: "numeric", hourCycle: "h23", timeZone: clinicTimeZone() }).format(new Date()));
@@ -23,74 +16,97 @@ function greeting(): string {
 }
 
 /**
- * Inicio: lo que se hace todos los días y nada más. Crear un presupuesto, anotar un cobro, ver lo pendiente,
- * y dos números (cobrado y por cobrar). El detalle y los análisis están en Control.
+ * Inicio: tres cosas. Empezar un presupuesto, ver en qué están tus presupuestos y saber cuánta plata recibiste y cuánta falta.
+ * Los importes vienen del servidor (cobrado confirmado y saldo real de los presupuestos); acá solo se cuentan estados.
  */
 export function HomePage() {
-  const [period, setPeriod] = useState<Period>(readPeriod);
-  const range = useMemo(() => resolveRange({ period, from: "", to: "" }), [period]);
-  const { data: s, error, reload } = useApi<Summary>(range ? `/dashboard?from=${range.from}&to=${range.to}` : null);
-  const choose = (v: string) => { setPeriod(v as Period); try { localStorage.setItem(KEY, v); } catch { /* sin storage */ } };
+  const month = useMemo(() => resolveRange({ period: "month", from: "", to: "" }), []);
+  const summary = useApi<Summary>(month ? `/dashboard?from=${month.from}&to=${month.to}` : null);
+  const budgets = useApi<Budget[]>("/budgets");
+  const requests = useApi<PaymentRequest[]>("/payments");
+
+  const failed = summary.error || budgets.error || requests.error;
+  const retry = () => { void summary.reload(); void budgets.reload(); void requests.reload(); };
+  const groups = budgets.data && requests.data ? groupWorks(budgets.data, requests.data) : null;
+  const noJobs = budgets.data?.length === 0;
+  const recibido = summary.data ? formatMoney(summary.data.collected_cents) : "—";
+  const porCobrar = summary.data ? formatMoney(summary.data.budgets_balance_cents) : "—";
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 sm:space-y-6">
-      <div className="pt-2 sm:pt-4">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{greeting()}</h1>
-        <p className="mt-1 text-lg text-muted">¿Qué querés hacer ahora?</p>
+    <div className="mx-auto max-w-3xl space-y-3 pb-2 sm:space-y-6 sm:pb-6">
+      <div className="pt-1 sm:pt-4">
+        <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:text-4xl">{greeting()} <span aria-hidden>👋</span></h1>
+        <p className="mt-1 hidden text-lg text-muted sm:block">¿Qué hacemos hoy?</p>
       </div>
 
-      <Link
-        to="/presupuestos/nuevo"
-        className="group flex items-center gap-3 rounded-3xl bg-primary p-4 text-white shadow-[0_18px_36px_-18px_rgba(23,59,54,0.7)] transition active:scale-[0.99] sm:gap-5 sm:p-7"
-      >
-        <span aria-hidden className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/12 sm:h-16 sm:w-16"><FilePlus2 size={28} strokeWidth={1.75} /></span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-xl font-semibold tracking-tight sm:text-3xl">Crear presupuesto</span>
-          <span className="mt-1 block text-sm text-white/85 sm:text-base">Presupuestá, compartí y cobrá en segundos.</span>
+      {/* La acción principal: lo más grande y con más color de toda la pantalla */}
+      <Link to="/presupuestos/nuevo" className="group relative flex items-center gap-3 overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary to-[#2c6a5f] px-4 py-4 text-white shadow-[0_14px_30px_-14px_rgba(23,59,54,0.55)] transition active:scale-[0.99] sm:gap-6 sm:px-8 sm:py-9">
+        <span aria-hidden className="pointer-events-none absolute -right-10 -top-12 h-44 w-44 rounded-full bg-white/[0.07]" />
+        <span aria-hidden className="pointer-events-none absolute -bottom-16 right-24 h-40 w-40 rounded-full bg-white/[0.05]" />
+        <span aria-hidden className="relative grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-primary sm:h-[72px] sm:w-[72px]"><FilePlus2 size={30} strokeWidth={1.9} /></span>
+        <span className="relative min-w-0 flex-1">
+          <span className="block text-xl font-semibold tracking-tight sm:text-3xl">Nuevo presupuesto</span>
+          <span className="mt-1 hidden text-base leading-snug text-white/85 sm:block">Prepará y compartí un presupuesto en minutos.</span>
         </span>
-        <ChevronRight aria-hidden size={26} className="shrink-0 transition group-hover:translate-x-0.5" />
+        <span aria-hidden className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15 transition group-hover:translate-x-0.5 group-hover:bg-white/25"><ChevronRight size={22} /></span>
       </Link>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        <QuickAction to="/cobros?pago=1" icon={<Wallet size={26} strokeWidth={1.75} />} title="Registrar cobro" text="Anotá un pago recibido." />
-        <QuickAction to="/cobros?estado=pendientes" icon={<ListChecks size={26} strokeWidth={1.75} />} title="Ver pendientes" text="Cobros y saldos por recibir." />
+      {failed && <p role="alert" className="text-sm text-danger">No pudimos cargar tus números. <button type="button" onClick={retry} className="cursor-pointer font-medium underline">Reintentar</button></p>}
+
+      <div className="space-y-3 sm:space-y-6">
+        <section aria-label="Tus presupuestos" className="flex flex-col rounded-3xl border bg-white p-4 sm:p-7">
+          <h2 className="text-base font-semibold sm:text-lg">Tus presupuestos</h2>
+          {noJobs ? (
+            <p className="mt-4 flex-1 text-[15px] leading-relaxed text-muted">Todavía no tenés presupuestos. Tocá <strong className="text-foreground">Nuevo presupuesto</strong> para armar el primero.</p>
+          ) : (
+            <dl className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
+              <Indicator to="/presupuestos?grupo=en-curso" label="En curso" value={groups?.inProgress.length} icon={Hammer} tone="success" />
+              <Indicator to="/presupuestos?grupo=por-responder" label="Por responder" value={groups?.toAnswer.length} icon={MessageCircle} tone="warning" />
+              <Indicator to="/presupuestos?grupo=atencion" label="Necesitan atención" value={groups?.attention.length} icon={CircleAlert} tone={groups && groups.attention.length > 0 ? "danger" : "neutral"} />
+            </dl>
+          )}
+          <Link to="/presupuestos" className="mt-3 inline-flex self-start py-1 text-[15px] font-semibold text-secondary hover:underline">Ver todos los presupuestos ›</Link>
+        </section>
+
+        <section aria-label="Tu dinero" className="flex flex-col rounded-3xl border bg-white p-4 sm:p-7">
+          <h2 className="text-base font-semibold sm:text-lg">Tu dinero</h2>
+          <dl className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
+            <Money label="Recibido" note="Este mes" icon={Wallet} tone="success" value={recibido} />
+            <Money label="Por cobrar" note="Hoy" icon={Hourglass} tone="warning" value={porCobrar} />
+          </dl>
+        </section>
       </div>
-
-      <section aria-label="Resumen" className="rounded-3xl border bg-white p-4 shadow-[0_8px_24px_-16px_rgba(23,59,54,0.25)] sm:p-5">
-        <div className="flex items-center gap-2 text-muted">
-          <CalendarDays aria-hidden size={18} />
-          <div className="w-44"><Dropdown searchable={false} ariaLabel="Período del resumen" placeholder="Período" value={period} onChange={choose} options={QUICK.map((p) => ({ value: p.value, label: p.label }))} /></div>
-        </div>
-        <dl className="mt-4 grid grid-cols-2 gap-4 sm:gap-6">
-          <div>
-            <dt className="text-sm text-muted">Cobrado</dt>
-            <dd className="mt-1 text-2xl font-semibold tracking-tight tabular sm:text-3xl">{s ? formatMoney(s.collected_cents) : "—"}</dd>
-          </div>
-          <div className="border-l pl-4 sm:pl-6">
-            <dt className="text-sm text-muted">Por cobrar</dt>
-            <dd className="mt-1 text-2xl font-semibold tracking-tight tabular sm:text-3xl">{s ? formatMoney(s.budgets_balance_cents) : "—"}</dd>
-            <p className="mt-0.5 text-xs text-muted">al día de hoy</p>
-          </div>
-        </dl>
-        {error && <p role="alert" className="mt-3 text-sm text-danger">No pudimos cargar los números. <button type="button" onClick={() => void reload()} className="cursor-pointer font-medium underline">Reintentar</button></p>}
-        {s && s.simulated.payments_count > 0 && (
-          <p className="mt-4 rounded-xl bg-warning/10 px-3 py-2 text-xs text-[#7a5222]">Hay {formatMoney(s.simulated.total_cents)} en pagos simulados del piloto. No son dinero y no se suman.</p>
-        )}
-      </section>
-
-      <p className="text-center text-sm text-muted"><Link to="/control" className="font-medium text-secondary hover:underline">Ver todas las métricas en Control</Link></p>
     </div>
   );
 }
 
-function QuickAction({ to, icon, title, text }: { to: string; icon: React.ReactNode; title: string; text: string }) {
+const TONE = {
+  success: { tile: "bg-success/10", chip: "bg-success/15 text-success" },
+  warning: { tile: "bg-warning/10", chip: "bg-warning/20 text-[#8a5d2b]" },
+  danger: { tile: "bg-danger/10", chip: "bg-danger/15 text-danger" },
+  neutral: { tile: "bg-soft", chip: "bg-white text-muted" },
+} as const;
+
+/** Un número con su ícono y lo que cuenta; al tocarlo se abre ese grupo de presupuestos. */
+function Indicator({ to, label, value, icon: Icon, tone }: { to: string; label: string; value?: number; icon: LucideIcon; tone: keyof typeof TONE }) {
   return (
-    <Link to={to} className="flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-[0_8px_24px_-18px_rgba(23,59,54,0.3)] transition hover:bg-soft/50 active:scale-[0.99] sm:flex-row sm:items-center sm:gap-4 sm:p-5">
-      <span aria-hidden className="text-primary">{icon}</span>
-      <span className="min-w-0">
-        <span className="block text-base font-semibold leading-tight sm:text-lg">{title}</span>
-        <span className="mt-0.5 block text-sm text-muted">{text}</span>
-      </span>
+    <Link to={to} className={cn("flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center sm:gap-2.5 sm:px-3 sm:py-4 transition hover:brightness-[0.97]", TONE[tone].tile)}>
+      <dd className="order-2 text-[28px] font-semibold leading-none sm:text-[34px] tracking-tight tabular">{value ?? "—"}</dd>
+      <span aria-hidden className={cn("order-1 grid h-8 w-8 place-items-center rounded-full", TONE[tone].chip)}><Icon size={16} /></span>
+      <dt className="order-3 text-balance text-[12.5px] leading-tight text-muted">{label}</dt>
     </Link>
+  );
+}
+
+function Money({ label, note, value, icon: Icon, tone }: { label: string; note: string; value: string; icon: LucideIcon; tone: keyof typeof TONE }) {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-2 rounded-2xl p-3 sm:gap-3 sm:p-5", TONE[tone].tile)}>
+      <div className="flex items-center gap-2">
+        <span aria-hidden className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full", TONE[tone].chip)}><Icon size={17} /></span>
+        <dt className="text-[13px] font-medium sm:text-sm">{label}</dt>
+      </div>
+      <dd><Amount value={value} mobile={22} desktop={32} /></dd>
+      <p className="text-xs text-muted">{note}</p>
+    </div>
   );
 }

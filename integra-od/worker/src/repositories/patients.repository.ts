@@ -1,6 +1,6 @@
 export interface PatientRow { id: string; name: string; name_key: string; phone: string | null; created_at: string; updated_at: string }
 
-/** Dos contactos no pueden tener el mismo nombre (sin importar mayúsculas ni espacios sobrantes). */
+/** Dos clientes no pueden tener el mismo nombre (sin importar mayúsculas ni espacios sobrantes). */
 export const keyOf = (s: string) => s.trim().toLowerCase();
 
 const COLS = "id, name, name_key, phone, created_at, updated_at";
@@ -17,7 +17,7 @@ export async function insertPatient(db: D1Database, p: { id: string; name: strin
 }
 
 /**
- * Cambia nombre y/o teléfono. Si cambia el nombre, se actualiza en todos lados donde ese contacto aparece
+ * Cambia nombre y/o teléfono. Si cambia el nombre, se actualiza en todos lados donde ese cliente aparece
  * (sus presupuestos y la copia local de cobros y pagos), para que siga siendo una sola persona.
  */
 export async function updatePatientRow(db: D1Database, current: PatientRow, next: { name: string; phone: string | null; now: string }) {
@@ -32,7 +32,7 @@ export async function updatePatientRow(db: D1Database, current: PatientRow, next
   await db.batch(stmts);
 }
 
-/** Cuántos registros usan a este contacto (presupuestos, cobros y pagos): con alguno, no se puede borrar. */
+/** Cuántos registros usan a este cliente (presupuestos, cobros y pagos): con alguno, no se puede borrar. */
 export async function patientUsage(db: D1Database, p: PatientRow): Promise<number> {
   const row = await db
     .prepare(

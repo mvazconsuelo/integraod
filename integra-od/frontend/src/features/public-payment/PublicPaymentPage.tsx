@@ -38,7 +38,7 @@ export function PublicPaymentPage() {
 
   return (
     <Page>
-      <article className="bg-white border rounded-2xl shadow-[0_1px_2px_rgba(23,59,54,0.04),0_16px_40px_-20px_rgba(23,59,54,0.14)]">
+      <article className="bg-white border rounded-2xl">
         <header className="px-6 sm:px-8 py-5 border-b">
           {clinic.logo_data_url ? (
             // El logo suele traer el nombre escrito: se muestra solo, más grande y sin repetirlo.
@@ -57,9 +57,7 @@ export function PublicPaymentPage() {
           <dl className="divide-y border-y text-sm">
             <Row label="Concepto" value={view.concept} />
             {view.budget_number != null && <Row label="Presupuesto" value={`N° ${String(view.budget_number).padStart(4, "0")}`} />}
-            <Row label="A nombre de" value={view.patient_ref} />
             {view.due_date && <Row label="Vence" value={formatDate(view.due_date)} tone={view.status === "expired" ? "danger" : undefined} />}
-            <Row label="Fecha del pedido" value={formatDate(view.created_at)} />
           </dl>
 
           {view.conditions && (

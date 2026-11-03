@@ -38,7 +38,7 @@ export async function paymentsCsv(db: D1Database, from: string, to: string) {
   const fees = approved.reduce((s, p) => s + (p.fee_cents ?? 0), 0);
   const net = approved.reduce((s, p) => s + (netOf(p) ?? 0), 0);
   return toCsv([
-    ["Fecha", "Contacto", "Concepto", "Medio", "Importe", "Comisión", "Te quedó", "Estado", "Origen", "Presupuesto N°", "Sin usar"],
+    ["Fecha", "Cliente", "Concepto", "Medio", "Importe", "Comisión", "Te quedó", "Estado", "Origen", "Presupuesto N°", "Sin usar"],
     ...body,
     ["", "", "TOTAL COBRADO", "", csvMoney(total), csvMoney(fees), csvMoney(net), "", "", "", ""],
     ...(simulated > 0 ? [["", "", "SIMULADO (piloto, no suma)", "", csvMoney(simulated), "", "", "", "", "", ""] as Cell[]] : []),
@@ -49,7 +49,7 @@ export async function paymentsCsv(db: D1Database, from: string, to: string) {
 export async function budgetsCsv(db: D1Database, from: string, to: string) {
   const rows = (await listBudgets(db)).filter((b) => b.issued_on >= from && b.issued_on <= to).sort((a, b) => a.number - b.number);
   return toCsv([
-    ["N°", "Contacto", "Fecha", "Válido hasta", "Estado", "Total", "Ya pagado", "Falta cobrar"],
+    ["N°", "Cliente", "Fecha", "Válido hasta", "Estado", "Total", "Ya pagado", "Falta cobrar"],
     ...rows.map((b): Cell[] => [pad(b.number), b.patient_ref, b.issued_on, b.valid_until, BUDGET_STATUS[b.status], csvMoney(b.total_cents), csvMoney(b.applied_cents), csvMoney(b.balance_cents)]),
   ]);
 }

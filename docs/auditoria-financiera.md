@@ -8,7 +8,7 @@ Dos bases, una fuente de verdad por tipo de dato:
 
 | Dato | Dónde vive | Quién lo escribe |
 |---|---|---|
-| Presupuestos, ítems, contactos, aplicaciones de pagos | App (`integra-od`, su D1) | La app |
+| Presupuestos, ítems, clientes, aplicaciones de pagos | App (`integra-od`, su D1) | La app |
 | Cobros (`intents`), pagos (`payments`), bitácora, credenciales | Servicio de pagos (`payments/`, su D1) | Solo el servicio |
 | Copia de cobros y pagos en la app (`payment_requests`, `payments`) | App | Se actualiza por respuesta + avisos firmados (outbox) |
 
@@ -47,7 +47,7 @@ Orden por gravedad.
 
 **P4 — Medio: zona horaria hardcodeada en tres lugares** (`worker/utils/dates.ts`, `registerManualPayment` con `-03:00`, `frontend/lib/formatters.ts: today()`), todos con -3 fijo. Funciona para Argentina; no es configurable por consultorio, y para otros rubros o países fallaría.
 
-**P5 — Medio: sin bitácora en la app.** Las operaciones del dinero sí quedan en la bitácora del servicio de pagos. En la app no se registra quién cambió qué: ediciones de presupuesto, cambios de estado, cancelaciones, renombres de contacto. El renombre además se propaga a `patient_ref` de la copia de pagos, mientras que el servicio de pagos conserva el nombre original: los dos lados pueden mostrar nombres distintos del mismo pago.
+**P5 — Medio: sin bitácora en la app.** Las operaciones del dinero sí quedan en la bitácora del servicio de pagos. En la app no se registra quién cambió qué: ediciones de presupuesto, cambios de estado, cancelaciones, renombres de cliente. El renombre además se propaga a `patient_ref` de la copia de pagos, mientras que el servicio de pagos conserva el nombre original: los dos lados pueden mostrar nombres distintos del mismo pago.
 
 **P6 — Medio: un solo usuario.** Hay una única clave de administración; no hay usuarios, roles ni registro de quién hizo cada cosa. Aceptable en el piloto con un consultorio; es el límite si lo usa más de una persona.
 
@@ -102,7 +102,7 @@ Decisiones tomadas: estados Enviado / En curso / Completado / Cancelado (sin Ace
 | P2 | El servidor decide anticipo / parcial / final y el texto; ignora el que mande el cliente. Un segundo anticipo pedido a propósito da `advance_exists`. |
 | P3 | Reserva atómica (`request_reservations`): un solo `INSERT … WHERE` verifica saldo, cobros vigentes, otras reservas y anticipo; dos pedidos simultáneos no pueden pasarse. |
 | P4 | `clinic_settings.time_zone` (Configuración → Zona horaria). Todos los días, períodos y vencimientos usan esa zona en servidor y en pantalla. |
-| P5 | `audit_log` en la app (solo se agrega): presupuestos, estados (incluidos los automáticos), cobros, pagos manuales, anulaciones, contactos, configuración. |
+| P5 | `audit_log` en la app (solo se agrega): presupuestos, estados (incluidos los automáticos), cobros, pagos manuales, anulaciones, clientes, configuración. |
 | P8 | Porcentaje pagado (listado y detalle) y línea de tiempo "Movimientos" por presupuesto. |
 | P9 | Tests A–G + reglas (`tests/finance-scenarios.test.ts`). |
 
@@ -117,7 +117,7 @@ Servicio de pagos 62 ✔ · App 185 ✔ (nuevas: escenarios A–G, concurrencia,
 ## Riesgos pendientes
 - Piloto: los saldos de los presupuestos sí reflejan los pagos simulados (para poder probar el flujo completo); solo el *dinero* del Resumen y los reportes los excluye. *Por cobrar* sale de los presupuestos, así que en piloto puede incluir saldos pagados con dinero simulado.
 - Zonas con horario de verano: el desfase en las consultas SQL es el vigente hoy (exacto en Argentina).
-- Un renombre de contacto cambia el nombre en la copia de la app, no en el servicio de pagos (que conserva el original).
+- Un renombre de cliente cambia el nombre en la copia de la app, no en el servicio de pagos (que conserva el original).
 - Una sola clave de administración: la bitácora registra "admin" (P6, fuera de alcance).
 - La copia de pagos en la app puede atrasarse hasta ~1 minuto respecto del servicio de pagos (P7).
 - Sin probar contra Mercado Pago real: falta app/credenciales, URL pública y usuarios de prueba. No se habilitaron cobros reales.

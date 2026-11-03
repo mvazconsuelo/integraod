@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { NAV, isNavActive } from "@/app/navigation";
 import { useSettings } from "@/app/providers";
 import { cn } from "@/lib/utils";
@@ -11,8 +11,8 @@ import { ReportsDialog } from "./ReportsDialog";
 function NavItem({ item, active }: { item: (typeof NAV)[number]; active: boolean }) {
   const Icon = item.icon;
   return (
-    <Link to={item.to} aria-current={active ? "page" : undefined} className={cn("flex flex-col items-center gap-1 py-2.5 text-xs", active ? "text-primary font-semibold" : "text-muted")}>
-      <Icon size={22} strokeWidth={active ? 2.5 : 2} />{item.label}
+    <Link to={item.to} aria-current={active ? "page" : undefined} className={cn("flex flex-col items-center gap-0.5 pb-2 pt-2 text-[11px]", active ? "text-primary font-semibold" : "text-muted")}>
+      <span className={cn("grid h-8 w-14 place-items-center rounded-full transition", active && "bg-primary/10")}><Icon size={22} strokeWidth={active ? 2.5 : 2} /></span>{item.label}
     </Link>
   );
 }
@@ -67,13 +67,8 @@ export function AppShell() {
         {reportsOpen && <ReportsDialog open onOpenChange={setReportsOpen} onPrint={setPrintRange} />}
         {printRange && <PeriodReportSheet from={printRange.from} to={printRange.to} onDone={() => setPrintRange(null)} />}
 
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t grid grid-cols-5 items-end z-30 pb-[env(safe-area-inset-bottom)]" aria-label="Principal">
-          {NAV.slice(0, 2).map((item) => <NavItem key={item.to} item={item} active={isNavActive(item, location.pathname)} />)}
-          {/* Crear presupuesto, siempre a mano */}
-          <div className="flex justify-center pb-2">
-            <Link to="/presupuestos/nuevo" aria-label="Crear presupuesto" className="-mt-6 grid h-14 w-14 place-items-center rounded-full bg-primary text-white shadow-[0_10px_24px_-8px_rgba(23,59,54,0.55)] ring-4 ring-white active:scale-95"><Plus size={26} /></Link>
-          </div>
-          {NAV.slice(2).map((item) => <NavItem key={item.to} item={item} active={isNavActive(item, location.pathname)} />)}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t grid grid-cols-4 z-30 pb-[env(safe-area-inset-bottom)]" aria-label="Principal">
+          {NAV.map((item) => <NavItem key={item.to} item={item} active={isNavActive(item, location.pathname)} />)}
         </nav>
       </div>
 

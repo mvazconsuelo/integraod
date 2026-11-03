@@ -6,11 +6,11 @@ Migraciones en `worker/migrations/`: `0001` configuración y presupuestos · `00
 - `payment_applications` nunca se edita; se anula con `voided_at`.
 - Tokens de Mercado Pago cifrados con AES-GCM (`TOKEN_ENC_KEY`) en `clinic_settings`.
 
-## Contactos (`0009`)
+## Clientes (`0009`)
 
 - `patients`: nombre completo (único sin importar mayúsculas, `name_key`) y teléfono en formato WhatsApp (`5493515550123`). El teléfono es obligatorio al crear; vive solo en la app, nunca en el servicio de pagos.
-- `budgets.patient_id` enlaza cada presupuesto con su contacto. La migración crea los contactos a partir de los nombres ya cargados (sin teléfono: se pide la primera vez que se usan).
-- Cambiar el nombre de un contacto lo actualiza en sus presupuestos, cobros y pagos. No se puede borrar un contacto con presupuestos.
+- `budgets.patient_id` enlaza cada presupuesto con su cliente. La migración crea los clientes a partir de los nombres ya cargados (sin teléfono: se pide la primera vez que se usan).
+- Cambiar el nombre de un cliente lo actualiza en sus presupuestos, cobros y pagos. No se puede borrar un cliente con presupuestos.
 - Un teléfono repetido avisa ("podés guardarlo igual": las familias comparten número).
 
 ## Auditoría financiera (`0011`)

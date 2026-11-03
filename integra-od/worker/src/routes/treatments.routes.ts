@@ -6,6 +6,7 @@ import * as svc from "../services/treatments.service";
 
 export const treatments = new Hono<{ Bindings: Env }>();
 
+treatments.get("/recent", async (c) => c.json(await svc.listRecentWork(c.env.DB)));
 treatments.get("/", async (c) => c.json(await svc.listTreatments(c.env.DB)));
 treatments.post("/", async (c) => c.json(await svc.createTreatment(c.env.DB, await parseBody(c, treatmentSchema)), 201));
 treatments.post("/categories/rename", async (c) => {

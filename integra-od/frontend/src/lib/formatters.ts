@@ -21,10 +21,10 @@ export const METHOD_LABEL: Record<string, string> = { mercadopago: "Mercado Pago
 export const methodLabel = (m: string) => METHOD_LABEL[m] ?? m;
 export const KIND_LABEL: Record<string, string> = { advance: "Anticipo", partial: "Pago parcial", final: "Pago final" };
 export const BUDGET_STATUS_LABEL: Record<string, string> = {
-  sent: "Enviado", in_progress: "En curso", completed: "Completado", cancelled: "Cancelado",
+  sent: "Sin pagos", in_progress: "Con pagos", completed: "Cobrado", cancelled: "Cancelado",
 };
 export const REQUEST_STATUS_LABEL: Record<string, string> = {
-  pending: "Pendiente", paid: "Pagado", expired: "Vencido", cancelled: "Cancelado", partially_paid: "Parcialmente pagado",
+  pending: "Esperando pago", paid: "Pagado", expired: "Vencido", cancelled: "Cancelado", partially_paid: "Pagó una parte",
 };
 
 /** Día (YYYY-MM-DD) del consultorio de un instante ISO. */

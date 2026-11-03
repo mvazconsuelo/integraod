@@ -209,7 +209,7 @@ export async function publicView(db: D1Database, publicId: string) {
   const d = withDerived(r);
   const open = d.display_status === "pending" || d.display_status === "partially_paid";
   return {
-    // Datos de contacto del negocio: quien paga tiene que poder saber con quién habla y cómo consultar. Nada del presupuesto.
+    // Datos de cliente del negocio: quien paga tiene que poder saber con quién habla y cómo consultar. Nada del presupuesto.
     clinic: { name: s.name, logo_data_url: s.logo_data_url, primary_color: s.primary_color, phone: s.phone, email: s.email, address: s.address, professional_info: s.professional_info },
     patient_ref: r.patient_ref,
     concept: r.concept,

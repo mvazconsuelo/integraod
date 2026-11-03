@@ -54,7 +54,7 @@ export async function upsertIntent(db: D1Database, i: IntentSnapshot) {
     .run();
 }
 
-/** Las condiciones del cobro son un dato de la app (texto para el contacto): el servicio de pagos no las conoce. */
+/** Las condiciones del cobro son un dato de la app (texto para el cliente): el servicio de pagos no las conoce. */
 export async function setConditions(db: D1Database, id: string, conditions: string) {
   await db.prepare("UPDATE payment_requests SET conditions = ? WHERE id = ?").bind(conditions, id).run();
 }

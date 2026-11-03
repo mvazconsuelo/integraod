@@ -7,8 +7,8 @@ import { ControlPage } from "@/features/dashboard/pages/ControlPage";
 import { BudgetsPage } from "@/features/budgets/pages/BudgetsPage";
 import { BudgetDetailPage } from "@/features/budgets/pages/BudgetDetailPage";
 import { BudgetEditorPage } from "@/features/budgets/pages/BudgetEditorPage";
-import { PaymentsPage } from "@/features/payments/pages/PaymentsPage";
-import { PaymentDetailPage } from "@/features/payments/pages/PaymentDetailPage";
+import { NewBudgetFlow } from "@/features/budgets/pages/NewBudgetFlow";
+import { LegacyRequestRedirect } from "@/features/payments/pages/LegacyRequestRedirect";
 import { PatientsPage } from "@/features/patients/pages/PatientsPage";
 import { PatientDetailPage } from "@/features/patients/pages/PatientDetailPage";
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
@@ -33,13 +33,15 @@ export const router = createBrowserRouter([
       { path: "actividad", element: <ActivityPage /> },
       { path: "control", element: <ControlPage /> },
       { path: "presupuestos", element: <BudgetsPage /> },
-      { path: "presupuestos/nuevo", element: <BudgetEditorPage /> },
+      { path: "presupuestos/nuevo", element: <NewBudgetFlow /> },
       { path: "presupuestos/:id/editar", element: <BudgetEditorPage /> },
       { path: "presupuestos/:id", element: <BudgetDetailPage /> },
-      { path: "cobros", element: <PaymentsPage /> },
-      { path: "cobros/:id", element: <PaymentDetailPage /> },
-      { path: "contactos", element: <PatientsPage /> },
-      { path: "contactos/:name", element: <PatientDetailPage /> },
+      // Cobros ya no es una sección: sus pedidos viven dentro de cada concepto.
+      { path: "contactos", element: <Navigate to="/clientes" replace /> }, // enlaces viejos
+      { path: "cobros", element: <Navigate to="/presupuestos?estado=pendientes" replace /> },
+      { path: "cobros/:id", element: <LegacyRequestRedirect /> },
+      { path: "clientes", element: <PatientsPage /> },
+      { path: "clientes/:name", element: <PatientDetailPage /> },
       { path: "configuracion", element: <SettingsPage /> },
       { path: "*", element: <Navigate to="/" replace /> },
     ],

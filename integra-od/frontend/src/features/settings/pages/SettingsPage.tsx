@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle2, Upload } from "lucide-react";
+import { CheckCircle2, FileText, Landmark, Palette, Phone, Settings as SettingsIcon, Upload, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ColorField } from "@/components/ui/color-field";
 import { NumberField } from "@/components/ui/number-field";
-import { TabPanel, Tabs } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { Field } from "@/components/shared/Field";
 import { Dropdown } from "@/components/ui/dropdown";
 import { TIME_ZONES } from "@/lib/time-zone";
+import { lighten } from "@/lib/color";
 import { MP_FEE_REFERENCE } from "@/config/wallet-fees";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { BackLink } from "@/components/shared/BackLink";
@@ -80,40 +80,20 @@ export function SettingsPage() {
   const connect = async () => { try { window.location.href = (await mpConnectUrl()).url; } catch (err) { setMsg({ ok: false, text: err instanceof Error ? err.message : "No pudimos iniciar la conexión." }); } };
   const disconnect = async () => { await mpDisconnect(); await reload(); setMsg({ ok: true, text: "Mercado Pago desconectado." }); };
 
-  const section = params.get("mp") ? "mercadopago" : (SECTIONS.find((t) => t.id === params.get("seccion"))?.id ?? "consultorio");
-  const goTo = (id: string) => setParams(id === "consultorio" ? {} : { seccion: id }, { replace: true });
+  // Qué grupo se abre solo: el de la dirección (?seccion=…), o Mercado Pago al volver de conectarlo.
+  const openGroup = params.get("mp") ? "mercadopago" : params.get("seccion") ?? "";
+  const mpWord = !settings.payments_online ? "Sin conexión" : settings.mp_mock ? "Modo piloto" : settings.mp_connected ? "Conectado" : "Sin conectar";
 
   return (
-    <>
+    <div className={`mx-auto max-w-2xl ${dirty ? "pb-24" : ""}`}>
       <BackLink to="/">inicio</BackLink>
-      <PageHeader title="Configuración" subtitle="Se configura una sola vez y se usa en todos tus presupuestos y links de pago." />
+      <PageHeader title="Configuración" icon={SettingsIcon} />
       {msg && <p role="status" className={`mb-4 rounded-lg px-4 py-3 text-sm ${msg.ok ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>{msg.text}</p>}
 
-      <Tabs tabs={SECTIONS} value={section} onChange={goTo} label="Secciones de configuración" idPrefix="settings" />
-
-      <div className={`max-w-3xl ${dirty ? "pb-24" : ""}`}>
-        <TabPanel id="consultorio" value={section} idPrefix="settings">
-          <div className="space-y-4">
-            <Card className="p-5 space-y-4">
-              <div>
-                <h2 className="text-base font-semibold">Datos de tu negocio</h2>
-                <p className="text-sm text-muted mt-0.5">Se muestran en tus presupuestos y en la página de pago, para que tus contactos sepan cómo comunicarse con vos.</p>
-              </div>
-              <Field label="Nombre comercial"><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
-              <Field label="Información profesional" hint="Ej: Ana Pérez · Diseño de interiores · Mat. 1234"><Input value={form.professional_info} onChange={(e) => set("professional_info", e.target.value)} /></Field>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="Teléfono"><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
-                <Field label="Email"><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
-              </div>
-              <Field label="Dirección"><Input value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
-              <Field plain label="Zona horaria" hint="Define qué día es «hoy», el cierre de cada día en los reportes y los vencimientos.">
-                <Dropdown searchable={false} ariaLabel="Zona horaria" placeholder="Elegí tu zona horaria" value={form.time_zone} onChange={(v) => set("time_zone", v)} options={TIME_ZONES.some((z) => z.value === form.time_zone) ? TIME_ZONES : [...TIME_ZONES, { value: form.time_zone, label: form.time_zone }]} />
-              </Field>
-            </Card>
-
-            <Card className="p-5 space-y-4">
-              <h2 className="text-base font-semibold">Identidad visual</h2>
-              <div className="flex flex-wrap items-center gap-4">
+      {/* Lo único que hace falta para empezar: cómo se llama tu negocio y su logo */}
+      <section className="space-y-5 rounded-3xl border bg-white p-5 sm:p-6">
+        <Field label="Nombre de tu negocio"><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
+        <div className="flex flex-wrap items-center gap-4">
                 <div className="h-16 w-16 rounded-lg border grid place-items-center bg-soft overflow-hidden">{form.logo_data_url ? <img src={form.logo_data_url} alt="Logo" className="max-h-full max-w-full object-contain" /> : <span className="text-xs text-muted">Sin logo</span>}</div>
                 <div className="space-y-2 min-w-0 max-w-full">
                   <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { onLogo(e.target.files?.[0]); e.target.value = ""; }} />
@@ -121,27 +101,11 @@ export function SettingsPage() {
                   <p className="text-xs text-muted">PNG, JPG, SVG o WebP · hasta 200 KB</p>
                   {form.logo_data_url && <Button type="button" size="sm" variant="ghost" onClick={() => set("logo_data_url", null)}>Quitar logo</Button>}
                 </div>
-              </div>
-              <div className="space-y-5">
-                <Field plain label="Color principal" hint="Títulos y encabezados de tus presupuestos."><ColorField label="Color principal" value={form.primary_color} onChange={(v) => set("primary_color", v)} /></Field>
-                <Field plain label="Color de acento" hint="Detalles y líneas de color."><ColorField label="Color de acento" value={form.accent_color} onChange={(v) => set("accent_color", v)} /></Field>
-              </div>
-            </Card>
-          </div>
-        </TabPanel>
+        </div>
+      </section>
 
-        <TabPanel id="presupuestos" value={section} idPrefix="settings">
-          <div className="space-y-4">
-              <Card className="p-5 space-y-4">
-                <h2 className="text-base font-semibold">Condiciones de los presupuestos</h2>
-                <Field label="Condiciones comerciales" hint="Aparecen en cada presupuesto nuevo."><Textarea value={form.terms} onChange={(e) => set("terms", e.target.value)} /></Field>
-                <Field plain label="Vigencia por defecto (días)"><NumberField ariaLabel="Vigencia por defecto en días" min={1} max={365} value={form.default_validity_days} onChange={(n) => set("default_validity_days", n)} className="max-w-44" /></Field>
-              </Card>
-            <TreatmentCatalogCard />
-          </div>
-        </TabPanel>
-
-        <TabPanel id="mercadopago" value={section} idPrefix="settings">
+      <div className="mt-4 space-y-3">
+        <Group icon={Landmark} title="Mercado Pago" hint={mpWord} open={openGroup === "mercadopago"}>
           <div className="space-y-4">
             <Card className="p-5 space-y-3">
               <h2 className="text-base font-semibold">Mercado Pago</h2>
@@ -156,7 +120,7 @@ export function SettingsPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-muted">Conectá tu cuenta para que los contactos puedan pagar con un link. Vas a autorizar la app desde Mercado Pago; nosotros nunca vemos tu contraseña.</p>
+                  <p className="text-sm text-muted">Conectá tu cuenta para que los clientes puedan pagar con un link. Vas a autorizar la app desde Mercado Pago; nosotros nunca vemos tu contraseña.</p>
                   <Button onClick={connect}>Conectar Mercado Pago</Button>
                 </>
               )}
@@ -186,9 +150,36 @@ export function SettingsPage() {
                 </p>
               </Card>
             )}
-            <Button variant="ghost" onClick={() => { setToken(""); window.location.href = "/"; }}>Cerrar sesión</Button>
           </div>
-        </TabPanel>
+        </Group>
+
+        <Group icon={Phone} title="Datos de contacto" hint="Salen en tus presupuestos y en la página de pago" open={openGroup === "contacto"}>
+          <div className="space-y-4">
+            <Field label="Nombre o profesión" hint="Ej: Ana Pérez · Diseño de interiores · Mat. 1234"><Input value={form.professional_info} onChange={(e) => set("professional_info", e.target.value)} /></Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Teléfono"><Input value={form.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
+              <Field label="Email"><Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} /></Field>
+            </div>
+            <Field label="Dirección"><Input value={form.address} onChange={(e) => set("address", e.target.value)} /></Field>
+          </div>
+        </Group>
+
+        <Group icon={FileText} title="Presupuestos" hint="Condiciones, vigencia y servicios" open={openGroup === "presupuestos"}>
+          <div className="space-y-5">
+            <Field label="Condiciones" hint="Aparecen en cada presupuesto nuevo."><Textarea value={form.terms} onChange={(e) => set("terms", e.target.value)} /></Field>
+            <Field plain label="Vigencia por defecto (días)"><NumberField ariaLabel="Vigencia por defecto en días" min={1} max={365} value={form.default_validity_days} onChange={(n) => set("default_validity_days", n)} className="max-w-44" /></Field>
+            <TreatmentCatalogCard />
+          </div>
+        </Group>
+
+        <Group icon={Palette} title="Apariencia y avanzado" hint="Color y zona horaria" open={openGroup === "avanzado"}>
+          <div className="space-y-5">
+            <Field plain label="Color" hint="Títulos y líneas de tus presupuestos."><ColorField label="Color" value={form.primary_color} onChange={(v) => { set("primary_color", v); setForm((f) => (f ? { ...f, primary_color: v, accent_color: lighten(v, 0.45) } : f)); }} /></Field>
+            <Field plain label="Zona horaria" hint="Define qué día es «hoy» y el cierre de cada día en los reportes.">
+              <Dropdown searchable={false} ariaLabel="Zona horaria" placeholder="Elegí tu zona horaria" value={form.time_zone} onChange={(v) => set("time_zone", v)} options={TIME_ZONES.some((z) => z.value === form.time_zone) ? TIME_ZONES : [...TIME_ZONES, { value: form.time_zone, label: form.time_zone }]} />
+            </Field>
+          </div>
+        </Group>
       </div>
 
       {dirty && (
@@ -202,12 +193,19 @@ export function SettingsPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
-const SECTIONS = [
-  { id: "consultorio", label: "Negocio" },
-  { id: "presupuestos", label: "Presupuestos y servicios" },
-  { id: "mercadopago", label: "Mercado Pago" },
-];
+/** Un grupo plegado: título, una línea que dice cómo está, y su contenido al abrirlo. */
+function Group({ icon: Icon, title, hint, open, children }: { icon: LucideIcon; title: string; hint: string; open: boolean; children: React.ReactNode }) {
+  return (
+    <details open={open} className="group rounded-3xl border bg-white px-5 py-4 sm:px-6">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+        <span className="flex items-center gap-3.5"><span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Icon size={19} /></span><span><span className="block font-semibold">{title}</span><span className="block text-sm text-muted">{hint}</span></span></span>
+        <span aria-hidden className="text-muted transition group-open:rotate-90">›</span>
+      </summary>
+      <div className="pt-4">{children}</div>
+    </details>
+  );
+}

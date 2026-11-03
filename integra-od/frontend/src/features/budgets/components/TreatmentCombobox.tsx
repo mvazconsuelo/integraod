@@ -40,7 +40,7 @@ export function TreatmentCombobox({ value, onChange, onPick, catalog, id, invali
   return (
     <div className="relative">
       <Input
-        id={id} value={value} autoComplete="off" placeholder="Escribí o elegí del listado" aria-invalid={invalid} role="combobox" aria-expanded={showPanel} aria-controls={`${id}-panel`}
+        id={id} value={value} autoComplete="off" placeholder="Ej.: instalación de cocina" aria-invalid={invalid} role="combobox" aria-expanded={showPanel} aria-controls={`${id}-panel`}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
         onKeyDown={(e) => e.key === "Escape" && setOpen(false)}

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 type Icon = ComponentType<{ size?: number }>;
 type Item = { to: string; label: string; icon: Icon };
 
-// Las mismas cuatro secciones de la barra de abajo. Presupuestos y cobros están dentro de Actividad.
+// Las mismas secciones de la barra de abajo.
 const SECTIONS: Item[] = NAV.map((n) => ({ to: n.to, label: n.label, icon: n.icon as Icon }));
 
 /** A la derecha de la barra superior: en el celular es el perfil (las secciones ya están abajo); en escritorio, el menú completo. */
@@ -33,7 +33,7 @@ export function MenuPanel({ onClose, onReports }: { onClose: () => void; onRepor
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const isActive = (label: string) => { const n = NAV.find((x) => x.label === label); return n ? isNavActive(n, pathname) : false; };
+  const isActive = (i: Item) => { const n = NAV.find((x) => x.label === i.label); return n ? isNavActive(n, pathname) : pathname.startsWith(i.to); };
 
   return (
     <>
@@ -48,7 +48,7 @@ export function MenuPanel({ onClose, onReports }: { onClose: () => void; onRepor
           {/* En el celular las secciones están en la barra de abajo: acá no se repiten */}
           <div className="hidden space-y-6 md:block">
           <Section title="Ir a">
-            {SECTIONS.map((i) => <NavRow key={i.label} item={i} active={isActive(i.label)} />)}
+            {SECTIONS.map((i) => <NavRow key={i.label} item={i} active={isActive(i)} />)}
           </Section>
 
           </div>
@@ -90,7 +90,7 @@ function NavRow({ item: { to, label, icon: Icon }, active }: { item: Item; activ
 function ActionRow({ item: { to, label, icon: Icon } }: { item: Item }) {
   return (
     <Link to={to} className="flex h-11 items-center gap-3 rounded-xl px-2 text-sm font-medium hover:bg-soft">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent/25 text-[#8a5d2b]"><Icon size={16} /></span>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-soft text-primary"><Icon size={16} /></span>
       {label}
     </Link>
   );

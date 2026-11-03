@@ -30,3 +30,17 @@ describe("mensaje de WhatsApp", () => {
     expect(whatsappUrl(null, "Hola")).toBe("https://wa.me/?text=Hola");
   });
 });
+
+import { phoneError } from "../frontend/src/lib/phone";
+
+describe("mensajes de teléfono", () => {
+  it("dice cuántos números faltan o sobran", () => {
+    expect(phoneError("+54 261334477")).toMatch(/Faltan números.*escribiste 9/);
+    expect(phoneError("261 334 44777")).toMatch(/Sobran números.*escribiste 11/);
+    expect(phoneError("261 abc")).toMatch(/solo números/);
+  });
+  it("un teléfono bueno no da error", () => {
+    expect(phoneError("+54 261 334 4477")).toBeNull();
+    expect(phoneError("0261 15 334-4477")).toBeNull();
+  });
+});

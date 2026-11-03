@@ -49,7 +49,7 @@ export function PeriodReportSheet({ from, to, onDone }: { from: string; to: stri
               <Line label="Cobraste en el período" value={formatMoney(s.collected_cents)} bold />
               <Line label={`Período anterior (${formatDate(s.previous_range.from)} al ${formatDate(s.previous_range.to)})`} value={formatMoney(s.previous_collected_cents)} />
               {s.by_method.map((m) => <Line key={m.method} label={`   ${methodLabel(m.method)}`} value={formatMoney(m.total_cents)} />)}
-              <Line label="Falta cobrar hoy (presupuestos en curso)" value={formatMoney(s.budgets_balance_cents)} bold />
+              <Line label="Falta cobrar hoy (presupuestos con pagos)" value={formatMoney(s.budgets_balance_cents)} bold />
               <Line label="Anticipos pedidos en el período" value={formatMoney(s.advances_requested_cents)} />
               <Line label="Anticipos cobrados en el período" value={formatMoney(s.advances_collected_cents)} />
               <Line label="Presupuestos emitidos en el período" value={`${s.budgets_issued.count} · ${formatMoney(s.budgets_issued.total)}`} />
@@ -59,7 +59,7 @@ export function PeriodReportSheet({ from, to, onDone }: { from: string; to: stri
           <h2 className="mt-6 mb-2 font-semibold" style={{ color }}>Cobros del período</h2>
           {rows.length === 0 ? <p>No hubo cobros en estas fechas.</p> : (
             <table className="w-full border-collapse">
-              <thead><tr className="text-left text-white" style={{ background: color }}><th className="p-2">Fecha</th><th className="p-2">Contacto</th><th className="p-2">Concepto</th><th className="p-2">Medio</th><th className="p-2">Estado</th><th className="p-2 text-right">Importe</th></tr></thead>
+              <thead><tr className="text-left text-white" style={{ background: color }}><th className="p-2">Fecha</th><th className="p-2">Cliente</th><th className="p-2">Concepto</th><th className="p-2">Medio</th><th className="p-2">Estado</th><th className="p-2 text-right">Importe</th></tr></thead>
               <tbody>
                 {rows.map((p) => (
                   <tr key={p.id} className="border-b"><td className="p-2">{formatDate(p.paid_at)}</td><td className="p-2">{p.patient_ref}</td><td className="p-2">{p.concept}</td><td className="p-2">{methodLabel(p.method)}</td><td className="p-2">{STATUS[p.status]}</td><td className="p-2 text-right">{formatMoney(p.amount_cents)}</td></tr>

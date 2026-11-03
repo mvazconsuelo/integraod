@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { FilePlus2, HandCoins, Undo2, Wallet } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { History } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { ActivityTabs } from "@/components/shared/ActivityTabs";
 import { EmptyState } from "@/components/feedback/EmptyState";
@@ -30,19 +30,19 @@ export function ActivityPage() {
   return (
     <>
       <ActivityTabs />
-      <PageHeader title="Actividad" subtitle="Lo que fue pasando con tus presupuestos y cobros." />
+      <PageHeader title="Historial" icon={History} />
       {error && <ErrorMessage message={error} onRetry={reload} />}
       {loading && !data && <Loading />}
       {data?.length === 0 && <EmptyState message="Todavía no hay movimientos. Cuando crees un presupuesto o recibas un pago, lo vas a ver acá." />}
       <div className="space-y-6">
         {[...groups].map(([day, events]) => (
           <section key={day} aria-label={dayLabel(day)}>
-            <h2 className="mb-2 text-sm font-semibold text-muted">{dayLabel(day)}</h2>
-            <Card className="divide-y">
+            <h2 className="mb-2 px-1 text-sm font-semibold uppercase tracking-wide text-muted">{dayLabel(day)}</h2>
+            <div className="divide-y overflow-hidden rounded-3xl border bg-white">
               {events.map((e) => {
                 const Icon = ICON[e.type];
                 return (
-                  <Link key={e.id} to={e.to} className="flex items-start gap-3 p-4 hover:bg-soft/40">
+                  <Link key={e.id} to={e.to} className="flex items-start gap-3 px-4 py-4 hover:bg-soft/50 sm:px-5">
                     <span aria-hidden className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full ${TONE[e.type]}`}><Icon size={17} /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-medium leading-snug">{e.text}</span>
@@ -52,7 +52,7 @@ export function ActivityPage() {
                   </Link>
                 );
               })}
-            </Card>
+            </div>
           </section>
         ))}
       </div>

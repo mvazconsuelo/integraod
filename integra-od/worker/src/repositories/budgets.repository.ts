@@ -9,7 +9,7 @@ export interface BudgetRow {
   number: number;
   patient_ref: string;
   patient_id: string | null;
-  /** Teléfono del contacto (para WhatsApp). */
+  /** Teléfono del cliente (para WhatsApp). */
   patient_phone: string | null;
   issued_on: string;
   valid_until: string | null;

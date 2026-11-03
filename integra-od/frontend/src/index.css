@@ -23,6 +23,12 @@
 
 .tabular { font-variant-numeric: tabular-nums; }
 
+/* iPhone: Safari hace zoom al tocar un campo con letra menor a 16 px. En el celular todos los campos van a 16 px
+   (el zoom de la persona, para leer, no se bloquea). */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select { font-size: 16px !important; }
+}
+
 /* Entrada suave de la pantalla de ingreso (se desactiva si la persona pidió menos movimiento) */
 @keyframes login-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .login-rise { animation: login-rise 0.35s ease-out both; }

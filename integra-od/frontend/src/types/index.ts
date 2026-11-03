@@ -4,7 +4,7 @@ export type BudgetStatus = "draft" | "sent" | "in_progress" | "completed" | "can
 export type RequestStatus = "pending" | "partially_paid" | "paid" | "cancelled" | "expired";
 
 export interface Budget {
-  id: string; number: number; patient_ref: string; patient_id: string | null; /** Teléfono del contacto, para WhatsApp. */ patient_phone: string | null; issued_on: string; valid_until: string | null;
+  id: string; number: number; patient_ref: string; patient_id: string | null; /** Teléfono del cliente, para WhatsApp. */ patient_phone: string | null; issued_on: string; valid_until: string | null;
   /** Porcentaje ya pagado (0 a 100). */ paid_percent: number;
   status: BudgetStatus; notes: string; total_cents: number; applied_cents: number; balance_cents: number;
   /** El anticipo ya se pidió o se cobró: solo se pueden pedir pagos que siguen. */
@@ -48,14 +48,18 @@ export interface Summary {
   money_unapplied_cents: number; budgets_balance_cents: number;
   pending_requests: { count: number; pending_cents: number; expired_cents: number; expired_count: number };
   budgets_issued: { count: number; total: number };
-  /** Presupuestado ÷ cantidad emitida (null si no hubo). */ average_ticket_cents: number | null;
-  /** Emitidos en el período que ya recibieron un pago. */ acceptance: { issued: number; accepted: number; rate_pct: number | null };
-  partials_collected_cents: number;
+  /** Presupuestos creados en el período (todos, aunque se hayan cancelado). */ budgets_emitted_count: number;
+  /** Presupuestos cuyo primer pago real confirmado cayó en el período (se aceptan pagando). */ jobs_concreted: { count: number; total_cents: number };
+  /** Promedio del total de los concretados (null si no hubo). */ average_job_cents: number | null;
+  /** De los emitidos en el período: aceptados, cancelados y los que todavía esperan. La tasa deja afuera a los que esperan. */ acceptance: { emitted: number; accepted: number; declined: number; waiting: number; rate_pct: number | null };
+  /** Saldo de hoy: presupuestos con pagos y saldo pendiente. */ open_jobs_count: number;
+  /** Pagos reales confirmados en el período, cada uno una vez. */ payments_count: number;
+  /** Presupuestos con un anticipo real confirmado en el período. */ advances_received_count: number;
   by_method: { method: Method; total_cents: number }[];
   monthly: { month: string; total_cents: number }[];
 }
 
-/** Un contacto de la lista: nombre y teléfono (WhatsApp). */
+/** Un cliente de la lista: nombre y teléfono (WhatsApp). */
 export interface Contact { id: string; name: string; phone: string | null; phone_display: string | null }
 export interface PatientSummary { id: string | null; phone: string | null; phone_display: string | null; name: string; budgets_count: number; budgeted_cents: number; applied_cents: number; balance_cents: number; last_activity: string }
 export interface PatientDetail {
