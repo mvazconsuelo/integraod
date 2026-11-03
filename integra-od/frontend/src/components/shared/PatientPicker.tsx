@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { Phone, Plus } from "lucide-react";
+import { Phone, Plus, Search } from "lucide-react";
+import { Avatar } from "@/components/shared/Avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Floating } from "@/components/ui/floating";
@@ -94,7 +95,7 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
         <p className="text-sm font-medium">Cliente nuevo</p>
         <NameFields autoFocus first={draft.first} last={draft.last} onChange={(n) => setDraft({ ...draft, ...n })} />
         <Field label="Teléfono (opcional)" hint="Solo hace falta para enviarle el presupuesto por WhatsApp.">
-          <Input autoComplete="off" inputMode="tel" value={draft.phone} onChange={(e) => { setDraft({ ...draft, phone: e.target.value }); setDuplicate(false); }} placeholder="351 555 0123" />
+          <Input type="tel" autoComplete="tel" inputMode="tel" enterKeyHint="done" value={draft.phone} onChange={(e) => { setDraft({ ...draft, phone: e.target.value }); setDuplicate(false); }} placeholder="351 555 0123" />
         </Field>
         {formError && <p role="alert" className="text-xs text-danger">{formError}</p>}
         <div className="flex flex-wrap gap-2">
@@ -112,9 +113,10 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
     const phone = selected?.phone_display;
     return (
       <Field plain required label="Cliente">
-        <div className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{name}</p>
+        <div className="flex items-center gap-3 rounded-2xl border bg-white px-3 py-2.5">
+          <Avatar name={name} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-base font-semibold">{name}</p>
             {phone && <p className="flex items-center gap-1 text-xs text-muted"><Phone size={12} />{phone}</p>}
           </div>
           <button type="button" onClick={() => { onChange({ id: "", name: "" }); setQuery(""); }} className="shrink-0 cursor-pointer text-sm font-medium text-secondary hover:underline">Cambiar</button>
@@ -124,14 +126,16 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
   }
 
   return (
-    <Field required label="Cliente" error={error} hint="Buscá por nombre. Si es nuevo, lo cargás acá mismo.">
+    <>
+    <Field required label="Cliente" error={error}>
       <div ref={root} className="relative">
+        <Search size={18} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <Input
-          autoFocus={autoFocus} autoComplete="off" value={query} placeholder="Nombre y apellido"
+          className="h-12 [@media(max-height:620px)]:h-11 pl-10 text-base" autoFocus={autoFocus} autoComplete="off" enterKeyHint="search" value={query} placeholder="Nombre y apellido"
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }} onClick={() => setOpen(true)} onBlur={() => setOpen(false)}
           onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }}
         />
-        {open && (matches.length > 0 || (query.trim() && !exact)) && (
+        {open && query.trim() !== "" && (matches.length > 0 || !exact) && ( // solo al buscar: sin texto no se muestra la lista
           <Floating anchor={root} maxHeight={240} className="p-1" onMouseDown={(e) => e.preventDefault()}>
             <ul role="listbox">
               {matches.map((c) => (
@@ -154,5 +158,8 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
         )}
       </div>
     </Field>
+      <button type="button" onClick={() => { setOpen(false); setFormError(""); setDuplicate(false); setDraft({ id: null, name: "", ...splitName(query), phone: PHONE_START }); }}
+        className="mt-3 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-secondary/30 bg-white px-3.5 text-sm font-medium text-secondary transition hover:bg-soft"><Plus size={15} aria-hidden />Cliente nuevo</button>
+    </>
   );
 }

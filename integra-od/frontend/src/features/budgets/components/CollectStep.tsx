@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CircleCheck, Clock, Link2, Wallet, type LucideIcon } from "lucide-react";
+import { Clock, Link2, Wallet, type LucideIcon } from "lucide-react";
 import { AmountField } from "@/components/shared/AmountField";
 import { Field } from "@/components/shared/Field";
 import { PercentQuick } from "@/components/shared/PercentQuick";
@@ -72,44 +72,39 @@ export function CollectStep({ budget: b, settings, handleRef, onBusy }: Props) {
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      <p className="flex items-center gap-2 text-sm font-medium text-success"><CircleCheck size={18} />Presupuesto guardado · {formatMoney(b.total_cents)}</p>
-
-      <div role="radiogroup" aria-label="Cómo vas a cobrar" className="space-y-2 sm:space-y-3">
-        <Option icon={Link2} title="Con link de Mercado Pago" text={onlineReady ? "Se lo mandás y paga desde el celular." : "Primero conectá Mercado Pago en Configuración."} selected={mode === "link"} disabled={!onlineReady} onSelect={() => chooseMode("link")} />
-        <Option icon={Wallet} title="Ya me pagaron" text="Efectivo o transferencia: lo registrás ahora." selected={mode === "paid"} onSelect={() => chooseMode("paid")} />
-        <Option icon={Clock} title="Todavía no cobro" text="Lo compartís y cobrás después." selected={mode === "later"} onSelect={() => chooseMode("later")} />
+            <div role="radiogroup" aria-label="Cómo vas a cobrar" className="grid grid-cols-3 gap-2 sm:gap-3">
+        <Option icon={Link2} short="Con link" title="Con link de Mercado Pago" text={onlineReady ? "Se lo mandás y paga desde el celular." : "Primero conectá Mercado Pago en Configuración."} selected={mode === "link"} disabled={!onlineReady} onSelect={() => chooseMode("link")} />
+        <Option icon={Wallet} short="Ya me pagaron" title="Ya me pagaron" text="Efectivo o transferencia: lo registrás ahora." selected={mode === "paid"} onSelect={() => chooseMode("paid")} />
+        <Option icon={Clock} short="Todavía no" title="Todavía no cobro" text="Lo compartís y cobrás después." selected={mode === "later"} onSelect={() => chooseMode("later")} />
       </div>
+      {/* En el celular las tres opciones van en una fila: la explicación de la elegida va debajo */}
+      {(mode === "later" || (mode === "link" && !onlineReady)) && <p className="text-[13px] text-muted sm:hidden">{mode === "link" ? "Primero conectá Mercado Pago." : "Lo compartís y cobrás después."}</p>}
       {!onlineReady && <p className="text-xs text-muted">Para cobrar con link, conectá Mercado Pago en <Link to="/configuracion?seccion=mercadopago" className="font-medium text-secondary underline">Configuración</Link>.</p>}
 
       {mode !== "later" && (
-        <div className="space-y-4 rounded-3xl border bg-white p-4 sm:space-y-5 sm:p-6">
-          <Field plain label={mode === "link" ? "¿Qué le pedís?" : "¿Qué te pagaron?"}>
-            <Segmented label="Una parte o todo" value={scope} onChange={chooseScope}
-              options={[{ value: "part", label: mode === "link" ? "Un anticipo" : "Una parte" }, { value: "all", label: mode === "link" ? "El total" : "Todo" }]} />
-          </Field>
+        <div className="space-y-3 sm:space-y-4 sm:rounded-3xl sm:border sm:bg-white sm:p-6">
+          <Segmented label="Una parte o todo" value={scope} onChange={chooseScope}
+            options={[{ value: "part", label: mode === "link" ? "Anticipo" : "Una parte" }, { value: "all", label: mode === "link" ? "Total" : "Todo" }]} />
 
           {scope === "part" ? (
-            <div className="space-y-4">
-              <p className="text-sm text-muted">{mode === "link" ? "Un anticipo es una parte del total, para reservar. El resto lo cobrás después." : "Una parte del total. El resto lo cobrás después."}</p>
+            <>
               <PercentQuick selected={pct} onPick={pick} />
-              <Field label={mode === "link" ? "Importe del anticipo" : "Importe que te pagaron"} hint={`Hasta ${formatMoney(limitFor(mode))}.`}>
+              <Field plain label={mode === "link" ? "Importe del anticipo" : "Importe cobrado"}>
                 <AmountField key={amountKey} valueCents={cents} onChange={(c) => { setCents(c); setPct(null); }} />
               </Field>
-            </div>
+            </>
           ) : (
-            <p className="rounded-2xl bg-soft px-4 py-3 text-[15px]">{mode === "link" ? "Le pedís todo el presupuesto: " : "Te pagaron todo el presupuesto: "}<strong className="tabular">{formatMoney(limitFor(mode))}</strong>.</p>
+            <p className="text-[15px]">{mode === "link" ? "Pedís" : "Cobraste"} el total: <strong className="tabular">{formatMoney(limitFor(mode))}</strong></p>
           )}
 
-          {mode === "paid" && (
-            <Field plain label="¿Cómo te pagó?"><Segmented label="Cómo te pagó" value={method} onChange={setMethod} options={[{ value: "cash", label: "Efectivo" }, { value: "transfer", label: "Transferencia" }]} /></Field>
-          )}
+          {mode === "paid" && <Segmented label="Cómo te pagó" value={method} onChange={setMethod} options={[{ value: "cash", label: "Efectivo" }, { value: "transfer", label: "Transferencia" }]} />}
 
-          {/* Qué queda después: lo que se pide o se cobra no es lo mismo que lo que falta */}
-          <p className="border-t pt-4 text-sm text-muted">
+          {/* Una línea: qué se pide o se cobra y qué queda */}
+          <p className="text-sm text-muted">
             {cents > 0 && cents < b.balance_cents
-              ? <>{mode === "link" ? "Pedís" : "Registrás"} <strong className="tabular text-foreground">{formatMoney(cents)}</strong> de {formatMoney(b.total_cents)}. Después te quedan <strong className="tabular text-foreground">{formatMoney(b.balance_cents - cents)}</strong> por cobrar.</>
-              : cents >= b.balance_cents && cents > 0 ? <>Con esto el presupuesto queda <strong className="text-foreground">{mode === "link" ? "pedido completo" : "cobrado completo"}</strong>.</> : "Ingresá un importe."}
-            {mode === "link" && " Pedir no es cobrar: figura pendiente hasta que se pague."}
+              ? <>{mode === "link" ? "Pedís" : "Registrás"} <strong className="tabular text-foreground">{formatMoney(cents)}</strong> · quedan <strong className="tabular text-foreground">{formatMoney(b.balance_cents - cents)}</strong></>
+              : cents >= b.balance_cents && cents > 0 ? <>Queda {mode === "link" ? "pedido" : "cobrado"} <strong className="text-foreground">completo</strong></> : "Ingresá un importe."}
+            {mode === "link" && <span className="hidden sm:inline"> · Pedir no es cobrar: figura pendiente hasta que se pague.</span>}
           </p>
         </div>
       )}
@@ -118,13 +113,12 @@ export function CollectStep({ budget: b, settings, handleRef, onBusy }: Props) {
   );
 }
 
-function Option({ icon: Icon, title, text, selected, disabled, onSelect }: { icon: LucideIcon; title: string; text: string; selected: boolean; disabled?: boolean; onSelect: () => void }) {
+function Option({ icon: Icon, title, short, text, selected, disabled, onSelect }: { icon: LucideIcon; title: string; short: string; text: string; selected: boolean; disabled?: boolean; onSelect: () => void }) {
   return (
     <button type="button" role="radio" aria-checked={selected} aria-disabled={disabled} disabled={disabled} onClick={onSelect}
-      className={cn("flex w-full cursor-pointer items-center gap-3 rounded-2xl border bg-white p-3 text-left sm:gap-4 sm:p-4 transition disabled:cursor-not-allowed disabled:opacity-55", selected ? "border-primary ring-2 ring-primary/25" : "hover:bg-soft/60")}>
+      className={cn("flex w-full cursor-pointer flex-col items-center gap-1.5 rounded-2xl border bg-white p-2.5 text-center sm:gap-2 sm:p-4 transition disabled:cursor-not-allowed disabled:opacity-55", selected ? "border-primary ring-2 ring-primary/25" : "hover:bg-soft/60")}>
       <span aria-hidden className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full", selected ? "bg-primary text-white" : "bg-primary/10 text-primary")}><Icon size={20} /></span>
-      <span className="min-w-0 flex-1"><span className="block font-semibold leading-tight">{title}</span><span className="mt-0.5 block text-[13px] leading-snug text-muted sm:text-sm">{text}</span></span>
-      <span aria-hidden className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border-2", selected ? "border-primary bg-primary text-white" : "border-foreground/25")}>{selected && <CircleCheck size={14} />}</span>
-    </button>
+      <span className="min-w-0 flex-1"><span className="block text-[13px] font-semibold leading-tight sm:text-base">{short}</span><span className="mt-1 hidden text-sm leading-snug text-muted sm:block">{text}</span></span>
+          </button>
   );
 }

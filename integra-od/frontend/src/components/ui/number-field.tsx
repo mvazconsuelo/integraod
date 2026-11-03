@@ -16,7 +16,7 @@ export function NumberField({ value, onChange, min = 0, max = 9999, id, ariaLabe
     <div className={cn("flex h-10 items-stretch overflow-hidden rounded-lg border bg-white", invalid && "border-danger", className)}>
       <button type="button" aria-label="Restar uno" className={btn} disabled={value <= min} onClick={() => set(value - 1)}><Minus size={14} /></button>
       <input
-        id={id} aria-label={ariaLabel} inputMode="numeric" autoComplete="off" value={text}
+        id={id} aria-label={ariaLabel} inputMode="numeric" enterKeyHint="done" autoComplete="off" value={text}
         onChange={(e) => {
           const digits = e.target.value.replace(/\D/g, "");
           if (digits === "") return setText("");

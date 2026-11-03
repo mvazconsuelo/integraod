@@ -18,9 +18,9 @@ import type { Budget } from "@/types";
 // Los grupos del Inicio, tal como viajan en la dirección (?grupo=…).
 const GROUPS: Record<string, { key: WorkGroup; label: string }> = {
   "en-curso": { key: "inProgress", label: "En curso" },
-  "esperando-pago": { key: "awaitingPayment", label: "Esperando pago" },
-  "por-responder": { key: "toAnswer", label: "Por responder" },
-  atencion: { key: "attention", label: "Necesitan atención" },
+  "esperando-pago": { key: "awaitingPayment", label: "Por pagar" },
+  "por-responder": { key: "toAnswer", label: "En espera" },
+  atencion: { key: "attention", label: "Vencidos" },
 };
 
 /** El concepto en una frase: el primer concepto y, si hay más, cuántos. */

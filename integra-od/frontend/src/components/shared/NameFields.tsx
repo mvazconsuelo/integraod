@@ -20,8 +20,8 @@ export function splitName(full: string): { first: string; last: string } {
 export function NameFields({ first, last, onChange, autoFocus }: { first: string; last: string; onChange: (v: { first: string; last: string }) => void; autoFocus?: boolean }) {
   return (
     <div className="grid grid-cols-2 gap-3">
-      <Field required label="Nombre"><Input autoComplete="off" autoFocus={autoFocus} value={first} onChange={(e) => onChange({ first: e.target.value, last })} /></Field>
-      <Field required label="Apellido"><Input autoComplete="off" value={last} onChange={(e) => onChange({ first, last: e.target.value })} /></Field>
+      <Field required label="Nombre"><Input autoComplete="off" enterKeyHint="next" autoFocus={autoFocus} value={first} onChange={(e) => onChange({ first: e.target.value, last })} /></Field>
+      <Field required label="Apellido"><Input autoComplete="off" enterKeyHint="next" value={last} onChange={(e) => onChange({ first, last: e.target.value })} /></Field>
     </div>
   );
 }

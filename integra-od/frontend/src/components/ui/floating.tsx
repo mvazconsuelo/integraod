@@ -40,7 +40,11 @@ export function Floating({ anchor, children, width = "anchor", maxHeight: cap = 
       const r = a.getBoundingClientRect();
       const w = width === "anchor" ? r.width : width;
       const natural = p.scrollHeight + (p.offsetHeight - p.clientHeight); // alto sin recortar, con bordes
-      const below = window.innerHeight - r.bottom - GAP - MARGIN;
+      // El borde de abajo es el del área VISIBLE: con el teclado abierto no es el de la ventana.
+      const vv = window.visualViewport;
+      const extra = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--kb-extra")) || 0;
+      const bottomEdge = (vv ? vv.offsetTop + vv.height : window.innerHeight) - extra;
+      const below = bottomEdge - r.bottom - GAP - MARGIN;
       const above = r.top - GAP - MARGIN;
       const up = natural > below && above > below;
       const maxHeight = Math.max(120, Math.min(cap, up ? above : below));
@@ -55,8 +59,9 @@ export function Floating({ anchor, children, width = "anchor", maxHeight: cap = 
     const observer = new ResizeObserver(place);
     if (el.current) observer.observe(el.current);
     window.addEventListener("resize", place);
+    window.visualViewport?.addEventListener("resize", place);
     window.addEventListener("scroll", place, true); // también el scroll del diálogo
-    return () => { observer.disconnect(); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+    return () => { observer.disconnect(); window.removeEventListener("resize", place); window.visualViewport?.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [anchor, layer, width, cap]);
 
   const panel = (

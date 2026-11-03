@@ -60,7 +60,7 @@ export function ShareBudgetDialog({ open, onOpenChange, budget: b, settings, onD
         </div>
         {!phone && (
           <Field required label="Teléfono (WhatsApp)" hint={`${b.patient_ref} todavía no tiene teléfono. Queda guardado para la próxima.`}>
-            <Input autoComplete="off" inputMode="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="351 555 0123" />
+            <Input type="tel" autoComplete="tel" inputMode="tel" enterKeyHint="done" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="351 555 0123" />
           </Field>
         )}
 

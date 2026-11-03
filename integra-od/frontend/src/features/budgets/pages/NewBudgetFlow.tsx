@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { CircleCheck, FilePlus2 } from "lucide-react";
+import { CircleCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FlowScreen, ActionBar } from "@/components/layout/FlowScreen";
 import { BackLink } from "@/components/shared/BackLink";
-import { PageHeader } from "@/components/shared/PageHeader";
 import { Stepper } from "@/components/shared/Stepper";
 import type { PickerHandle } from "@/components/shared/PatientPicker";
 import { useSettings } from "@/app/providers";
@@ -17,6 +17,8 @@ import type { BudgetForm } from "../schemas/budget.schema";
 import { createBudget } from "../services/budgets.service";
 
 const STEPS = ["Cliente", "Conceptos", "Cómo cobrar", "Listo"];
+// Lo que se le pide a la persona en cada paso (el título grande de la pantalla).
+const TITLES = ["¿Para quién es?", "¿Qué vas a presupuestar?", "¿Cómo querés cobrar?", "Listo"];
 
 /**
  * Presupuesto nuevo, paso a paso: 1) cliente, 2) conceptos, 3) cómo cobrar, 4) listo y compartir.
@@ -50,7 +52,7 @@ export function NewBudgetFlow() {
   }, [settings]); // eslint-disable-line react-hooks/exhaustive-deps
   // Borrador de los pasos 1 y 2.
   useEffect(() => { if (!budget) writeDraft({ values: h.values, open: h.open }); }, [JSON.stringify(h.values), h.open, budget]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { window.scrollTo(0, 0); }, [step]);
+  useEffect(() => { window.scrollTo(0, 0); document.querySelector("[data-flow-region]")?.scrollTo?.(0, 0); }, [step]);
 
   const next = async () => {
     setError("");
@@ -80,18 +82,27 @@ export function NewBudgetFlow() {
     }
   };
 
-  return (
-    <div className="mx-auto max-w-2xl">
-      {step < 3 && <BackLink to="/presupuestos">presupuestos</BackLink>}
-      <div className="hidden md:block"><PageHeader title="Nuevo presupuesto" icon={FilePlus2} /></div>
-      <Stepper step={step} labels={STEPS} />
+  const bar = step < 4 && (
+    <ActionBar error={error}>
+      {step === 1 ? <Link to="/presupuestos" className="text-sm font-medium text-secondary hover:underline">Cancelar</Link>
+        : step === 2 ? <div><p className="text-xs text-muted">Total</p><p className="text-xl font-semibold tabular">{formatMoney(h.sum)}</p></div>
+        : budget ? <Link to={`/presupuestos/${budget.id}/editar`} className="text-sm font-medium text-secondary hover:underline">Editar presupuesto</Link>
+        : <span />}
+      <div className="flex items-center gap-3">
+        {step === 2 && <Button variant="ghost" className="h-11" onClick={() => setStep(1)}>Atrás</Button>}
+        <Button className="h-11 px-7 text-base" disabled={busy} onClick={() => void next()}>Continuar</Button>
+      </div>
+    </ActionBar>
+  );
 
+  return (
+    <FlowScreen top={<><div className="hidden desk:block"><BackLink to="/presupuestos">presupuestos</BackLink></div><Stepper step={step} labels={STEPS} title={TITLES[step - 1]} eyebrow="Nuevo presupuesto" /></>} bar={bar}>
       {step === 1 && <ClientField h={h} pickerRef={picker} autoFocus={!params.get("cliente")} />}
-      {step === 2 && <div className="space-y-4"><ConceptsFields h={h} /><OptionalFields h={h} /></div>}
+      {step === 2 && <div className="space-y-3"><ConceptsFields h={h} /><OptionalFields h={h} /></div>}
       {step === 3 && budget && settings && <CollectStep budget={budget} settings={settings} handleRef={collect} onBusy={setBusy} />}
       {step === 4 && budget && (
-        <div className="space-y-5 rounded-3xl bg-success/10 p-6 text-center sm:p-8">
-          <span aria-hidden className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-success text-white"><CircleCheck size={34} /></span>
+        <div className="space-y-4 rounded-3xl bg-success/10 p-5 text-center sm:p-8">
+          <span aria-hidden className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-success text-white"><CircleCheck size={30} /></span>
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">Presupuesto listo</h2>
             <p className="mt-1 text-muted">{budget.patient_ref} · {formatMoney(budget.total_cents)}</p>
@@ -103,22 +114,6 @@ export function NewBudgetFlow() {
           </div>
         </div>
       )}
-
-
-      {step < 4 && (
-        <div className="flow-bar sticky bottom-[calc(4.1rem+env(safe-area-inset-bottom))] z-20 -mx-4 mt-4 border-t bg-white px-4 py-2.5 md:static md:z-auto md:mx-0 md:mt-5 md:rounded-2xl md:border md:p-4">
-          {error && <p role="alert" className="mx-auto mb-2 max-w-2xl text-sm font-medium text-danger">{error}</p>}
-          <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
-            {step === 2 ? <div><p className="text-xs text-muted">Total</p><p className="text-xl font-semibold tabular">{formatMoney(h.sum)}</p></div>
-              : step === 3 && budget ? <Link to={`/presupuestos/${budget.id}/editar`} className="text-sm font-medium text-secondary hover:underline">Editar presupuesto</Link>
-              : <span />}
-            <div className="flex items-center gap-3">
-              {step === 2 && <Button variant="ghost" className="h-11" onClick={() => setStep(1)}>Atrás</Button>}
-              <Button className="h-11 px-7 text-base" disabled={busy} onClick={() => void next()}>Continuar</Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </FlowScreen>
   );
 }

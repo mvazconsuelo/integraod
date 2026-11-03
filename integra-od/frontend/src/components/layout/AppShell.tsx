@@ -4,6 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import { NAV, isNavActive } from "@/app/navigation";
 import { useSettings } from "@/app/providers";
 import { cn } from "@/lib/utils";
+import { useVisualViewport } from "@/hooks/useVisualViewport";
 import { MenuButton, MenuPanel } from "./HamburgerMenu";
 import { PeriodReportSheet } from "./PeriodReportSheet";
 import { ReportsDialog } from "./ReportsDialog";
@@ -35,28 +36,18 @@ export function AppShell() {
     const timer = setTimeout(() => setNotice(""), 4000);
     return () => clearTimeout(timer);
   }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Con el teclado abierto (celular) sobra todo lo fijo: se marca la página para que el menú de abajo y las barras
-  // pegadas no tapen el campo que se está escribiendo (ver .kb-open en index.css).
-  useEffect(() => {
-    let off: ReturnType<typeof setTimeout>;
-    const editable = (t: EventTarget | null) => t instanceof HTMLElement && t.matches("input:not([type=checkbox]):not([type=radio]), textarea, select");
-    const on = (e: FocusEvent) => { if (editable(e.target)) { clearTimeout(off); document.documentElement.classList.add("kb-open"); } };
-    const out = () => { off = setTimeout(() => document.documentElement.classList.remove("kb-open"), 120); };
-    if (editable(document.activeElement)) document.documentElement.classList.add("kb-open"); // ya enfocado al cargar (autoFocus)
-    document.addEventListener("focusin", on); document.addEventListener("focusout", out);
-    return () => { document.removeEventListener("focusin", on); document.removeEventListener("focusout", out); clearTimeout(off); document.documentElement.classList.remove("kb-open"); };
-  }, []);
+  useVisualViewport(); // área visible y teclado, para los flujos de pantalla completa
   useEffect(() => { document.title = settings?.name ? `${settings.name} · Finanzas` : "Presupuestos y cobros"; }, [settings?.name]);
 
   // El contenido tiene siempre el mismo ancho máximo y va centrado. El menú se abre encima y no lo mueve.
   const column = "w-full mx-auto max-w-7xl px-4 sm:px-6 lg:px-8";
 
   return (
-    <div className="min-h-dvh">
-      <div className="pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
-        {settings && !settings.payments_online && <p role="alert" className="bg-danger/10 text-danger text-xs text-center px-3 py-1 sm:px-4 sm:py-1.5"><span className="sm:hidden">Servicio de pagos no disponible por ahora.</span><span className="hidden sm:inline">El servicio de pagos no está disponible: por ahora no se pueden crear cobros ni registrar pagos.</span></p>}
-        {settings?.mp_mock && <p role="note" className="bg-warning/15 text-[#7a5222] text-xs text-center px-3 py-1 sm:px-4 sm:py-1.5"><span className="sm:hidden">Modo piloto: pagos simulados.</span><span className="hidden sm:inline">Modo piloto: los pagos de Mercado Pago son simulados, no se cobra dinero real.</span></p>}
-        <header className="bg-white border-b sticky top-0 z-30">
+    <div className="app-root min-h-dvh">
+      <div className="app-body pb-[calc(4.2rem+env(safe-area-inset-bottom))] md:pb-0">
+        {settings && !settings.payments_online && <p role="alert" className="app-banner bg-danger/10 text-danger text-xs text-center px-3 py-1 sm:px-4 sm:py-1.5"><span className="sm:hidden">Servicio de pagos no disponible por ahora.</span><span className="hidden sm:inline">El servicio de pagos no está disponible: por ahora no se pueden crear cobros ni registrar pagos.</span></p>}
+        {settings?.mp_mock && <p role="note" className="app-banner bg-warning/15 text-[#7a5222] text-xs text-center px-3 py-1 sm:px-4 sm:py-1.5"><span className="sm:hidden">Modo piloto: pagos simulados.</span><span className="hidden sm:inline">Modo piloto: los pagos de Mercado Pago son simulados, no se cobra dinero real.</span></p>}
+        <header className="app-header bg-white border-b sticky top-0 z-30">
           <div className={cn(column, "h-14 flex items-center justify-between gap-4")}>
             <Link to="/" aria-label="Ir al inicio" className="flex items-center gap-2 font-semibold text-primary min-w-0 rounded-lg hover:opacity-80 justify-self-start">
               {settings?.logo_data_url ? (
@@ -73,12 +64,12 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className={cn(column, "py-4 md:py-8")}><Outlet /></main>
+        <main className={cn(column, "app-main py-3 md:py-8")}><Outlet /></main>
 
         {reportsOpen && <ReportsDialog open onOpenChange={setReportsOpen} onPrint={setPrintRange} />}
         {printRange && <PeriodReportSheet from={printRange.from} to={printRange.to} onDone={() => setPrintRange(null)} />}
 
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t grid grid-cols-4 z-30 pb-[env(safe-area-inset-bottom)]" aria-label="Principal">
+        <nav className="app-nav md:hidden fixed bottom-0 inset-x-0 bg-white border-t grid grid-cols-4 z-30 pb-[env(safe-area-inset-bottom)]" aria-label="Principal">
           {NAV.map((item) => <NavItem key={item.to} item={item} active={isNavActive(item, location.pathname)} />)}
         </nav>
       </div>
