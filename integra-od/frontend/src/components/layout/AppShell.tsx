@@ -35,6 +35,17 @@ export function AppShell() {
     const timer = setTimeout(() => setNotice(""), 4000);
     return () => clearTimeout(timer);
   }, [location.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Con el teclado abierto (celular) sobra todo lo fijo: se marca la página para que el menú de abajo y las barras
+  // pegadas no tapen el campo que se está escribiendo (ver .kb-open en index.css).
+  useEffect(() => {
+    let off: ReturnType<typeof setTimeout>;
+    const editable = (t: EventTarget | null) => t instanceof HTMLElement && t.matches("input:not([type=checkbox]):not([type=radio]), textarea, select");
+    const on = (e: FocusEvent) => { if (editable(e.target)) { clearTimeout(off); document.documentElement.classList.add("kb-open"); } };
+    const out = () => { off = setTimeout(() => document.documentElement.classList.remove("kb-open"), 120); };
+    if (editable(document.activeElement)) document.documentElement.classList.add("kb-open"); // ya enfocado al cargar (autoFocus)
+    document.addEventListener("focusin", on); document.addEventListener("focusout", out);
+    return () => { document.removeEventListener("focusin", on); document.removeEventListener("focusout", out); clearTimeout(off); document.documentElement.classList.remove("kb-open"); };
+  }, []);
   useEffect(() => { document.title = settings?.name ? `${settings.name} · Finanzas` : "Presupuestos y cobros"; }, [settings?.name]);
 
   // El contenido tiene siempre el mismo ancho máximo y va centrado. El menú se abre encima y no lo mueve.

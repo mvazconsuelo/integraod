@@ -47,3 +47,9 @@
 
 /* Barras de desplazamiento finas, en los colores de la app */
 * { scrollbar-width: thin; scrollbar-color: #c4d0ca transparent; }
+
+/* Celular con el teclado abierto: sin menú de abajo y con la barra del flujo en su lugar, para ver lo que se escribe. */
+@media (max-width: 767px) {
+  html.kb-open nav[aria-label="Principal"] { display: none; }
+  html.kb-open .flow-bar { position: static; }
+}
