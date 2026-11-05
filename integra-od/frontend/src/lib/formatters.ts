@@ -9,6 +9,13 @@ export function formatDate(value: string | null | undefined): string {
   return fmt(day ? "UTC" : clinicTimeZone()).format(day ? new Date(`${value}T12:00:00Z`) : new Date(value)).replace(".", "");
 }
 
+/** Fecha corta, "03/11/2026". Mismas reglas que formatDate. */
+export function formatDateNumeric(value: string | null | undefined): string {
+  if (!value) return "—";
+  const day = value.length === 10;
+  return new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: day ? "UTC" : clinicTimeZone() }).format(day ? new Date(`${value}T12:00:00Z`) : new Date(value));
+}
+
 export const today = () => dayOf(new Date());
 
 export function addDays(day: string, days: number): string {
@@ -20,6 +27,7 @@ export function addDays(day: string, days: number): string {
 export const METHOD_LABEL: Record<string, string> = { mercadopago: "Mercado Pago", cash: "Efectivo", transfer: "Transferencia" };
 export const methodLabel = (m: string) => METHOD_LABEL[m] ?? m;
 export const KIND_LABEL: Record<string, string> = { advance: "Anticipo", partial: "Pago parcial", final: "Pago final" };
+export const PAYMENT_MODE_LABEL: Record<string, string> = { total: "Pago total", advance: "Anticipo + saldo", partial: "Pagos parciales" };
 export const BUDGET_STATUS_LABEL: Record<string, string> = {
   sent: "Sin pagos", in_progress: "Con pagos", completed: "Cobrado", cancelled: "Cancelado",
 };

@@ -1,11 +1,11 @@
 import { BarChart3, FileText, Home, Users } from "lucide-react";
 
-/** Cuatro secciones: Inicio, Presupuestos (y su historial), Clientes y Control (las métricas). */
+/** Cuatro secciones: Inicio, Presupuestos (y su historial), Destinatarios y Métricas (las métricas). */
 export const NAV = [
   { to: "/", label: "Inicio", icon: Home, match: ["/"], exact: true },
-  { to: "/presupuestos", label: "Presupuestos", icon: FileText, match: ["/actividad", "/presupuestos"], exact: false },
-  { to: "/clientes", label: "Clientes", icon: Users, match: ["/clientes"], exact: false },
-  { to: "/control", label: "Control", icon: BarChart3, match: ["/control"], exact: false },
+  { to: "/presupuestos", label: "Presupuestos", icon: FileText, match: ["/presupuestos"], exact: false },
+  { to: "/clientes", label: "Destinatarios", icon: Users, match: ["/clientes"], exact: false },
+  { to: "/control", label: "Métricas", icon: BarChart3, match: ["/control", "/actividad"], exact: false },
 ] as const;
 
 export const isNavActive = (item: (typeof NAV)[number], pathname: string) =>

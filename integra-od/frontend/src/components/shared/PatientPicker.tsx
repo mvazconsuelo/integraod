@@ -22,6 +22,8 @@ interface Props {
   onChange: (p: PickedPatient) => void;
   error?: string;
   autoFocus?: boolean;
+  /** Avisa cuando se abre o se cierra el alta de un cliente nuevo. */
+  onDraftChange?: (open: boolean) => void;
 }
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -30,7 +32,7 @@ const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
  * Elegir un cliente de la lista o cargarlo en el momento (nombre completo y teléfono, los dos obligatorios).
  * Queda guardado: la próxima vez aparece al escribir las primeras letras, con su teléfono.
  */
-export function PatientPicker({ value, onChange, error, autoFocus, handle }: Props) {
+export function PatientPicker({ value, onChange, error, autoFocus, handle, onDraftChange }: Props) {
   const contacts = useApi<Contact[]>("/patients/contacts");
   const list = contacts.data ?? [];
   const [query, setQuery] = useState(value.id ? "" : value.name);
@@ -41,6 +43,7 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
   const [duplicate, setDuplicate] = useState(false);
   const [busy, setBusy] = useState(false);
   const root = useRef<HTMLDivElement>(null);
+  useEffect(() => { onDraftChange?.(draft !== null); }, [draft !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Un nombre que viene escrito (presupuestos viejos) se enlaza solo si ya existe en la lista.
   useEffect(() => {
@@ -82,7 +85,7 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
       return true;
     } catch (e) {
       if (e instanceof ApiError && e.code === "phone_in_use") setDuplicate(true);
-      setFormError(e instanceof Error ? e.message : "No pudimos guardar al cliente.");
+      setFormError(e instanceof Error ? e.message : "No pudimos guardar al destinatario.");
       return false;
     } finally { setBusy(false); }
   };
@@ -92,7 +95,7 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
   if (draft) {
     return (
       <div className="space-y-3 rounded-lg border border-dashed bg-soft/40 p-3" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void save(); } }}>
-        <p className="text-sm font-medium">Cliente nuevo</p>
+        <p className="text-sm font-medium">Destinatario nuevo</p>
         <NameFields autoFocus first={draft.first} last={draft.last} onChange={(n) => setDraft({ ...draft, ...n })} />
         <Field label="Teléfono (opcional)" hint="Solo hace falta para enviarle el presupuesto por WhatsApp.">
           <Input type="tel" autoComplete="tel" inputMode="tel" enterKeyHint="done" value={draft.phone} onChange={(e) => { setDraft({ ...draft, phone: e.target.value }); setDuplicate(false); }} placeholder="351 555 0123" />
@@ -101,7 +104,7 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
         <div className="flex flex-wrap gap-2">
           {duplicate
             ? <Button type="button" size="sm" disabled={busy} onClick={() => void save(true)}>Guardar igual</Button>
-            : <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>Guardar cliente</Button>}
+            : <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>Guardar destinatario</Button>}
           <Button type="button" size="sm" variant="ghost" onClick={() => { setDraft(null); setFormError(""); setDuplicate(false); }}>Cancelar</Button>
         </div>
       </div>
@@ -112,11 +115,11 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
     const name = selected?.name ?? value.name;
     const phone = selected?.phone_display;
     return (
-      <Field plain required label="Cliente">
+      <Field plain required label="Destinatario">
         <div className="flex items-center gap-3 rounded-2xl border bg-white px-3 py-2.5">
           <Avatar name={name} />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-semibold">{name}</p>
+            <p className="text-base font-semibold [overflow-wrap:anywhere]">{name}</p>
             {phone && <p className="flex items-center gap-1 text-xs text-muted"><Phone size={12} />{phone}</p>}
           </div>
           <button type="button" onClick={() => { onChange({ id: "", name: "" }); setQuery(""); }} className="shrink-0 cursor-pointer text-sm font-medium text-secondary hover:underline">Cambiar</button>
@@ -126,8 +129,7 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
   }
 
   return (
-    <>
-    <Field required label="Cliente" error={error}>
+    <Field required label="Destinatario" error={error}>
       <div ref={root} className="relative">
         <Search size={18} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <Input
@@ -147,9 +149,11 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
                 </li>
               ))}
               {query.trim() && !exact && (
-                <li>
-                  <button type="button" onClick={() => { setOpen(false); setFormError(""); setDuplicate(false); setDraft({ id: null, name: "", ...splitName(query), phone: PHONE_START }); }} className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm font-medium text-primary hover:bg-soft">
-                    <span className="min-w-0 truncate">Crear «{query.trim()}»</span><Plus size={16} className="shrink-0" />
+                <li className={matches.length > 0 ? "mt-1 border-t pt-1" : undefined}>
+                  <button type="button" onClick={() => { setOpen(false); setFormError(""); setDuplicate(false); setDraft({ id: null, name: "", ...splitName(query), phone: PHONE_START }); }}
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-primary/10 px-3 py-3 text-left text-sm font-semibold text-primary hover:bg-primary/15">
+                    <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary text-white"><Plus size={16} /></span>
+                    <span className="min-w-0 truncate">Crear nuevo destinatario</span>
                   </button>
                 </li>
               )}
@@ -158,8 +162,5 @@ export function PatientPicker({ value, onChange, error, autoFocus, handle }: Pro
         )}
       </div>
     </Field>
-      <button type="button" onClick={() => { setOpen(false); setFormError(""); setDuplicate(false); setDraft({ id: null, name: "", ...splitName(query), phone: PHONE_START }); }}
-        className="mt-3 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-secondary/30 bg-white px-3.5 text-sm font-medium text-secondary transition hover:bg-soft"><Plus size={15} aria-hidden />Cliente nuevo</button>
-    </>
   );
 }

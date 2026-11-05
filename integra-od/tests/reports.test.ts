@@ -37,7 +37,7 @@ describe("reportes del período", () => {
   it("cobros: solo los del rango, con el presupuesto y el total", async () => {
     await setup();
     const rows = lines(await paymentsCsv(db, "2026-11-01", "2026-11-30"));
-    expect(rows[0]).toBe("Fecha;Cliente;Concepto;Medio;Importe;Comisión;Te quedó;Estado;Origen;Presupuesto N°;Sin usar");
+    expect(rows[0]).toBe("Fecha;Destinatario;Concepto;Medio;Importe;Comisión;Te quedó;Estado;Origen;Presupuesto N°;Sin usar");
     expect(rows[1]).toBe("2026-11-06;Ana Pérez;Anticipo · T;Efectivo;30000,00;0,00;30000,00;Cobrado;Carga manual;0001;0,00"); // efectivo: sin comisión, te quedó todo
     expect(rows).toHaveLength(3);
     expect(rows[2]).toContain("TOTAL COBRADO;;30000,00;0,00;30000,00");
@@ -84,7 +84,7 @@ describe("rutas de reportes (HTTP)", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/csv");
     expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="cobros_2026-11-01_a_2026-11-30.csv"');
-    expect((await res.text()).replace("﻿", "")).toContain("Fecha;Cliente;Concepto");
+    expect((await res.text()).replace("﻿", "")).toContain("Fecha;Destinatario;Concepto");
   });
   it("las tres rutas responden y un rango inválido da un error claro, no un 500", async () => {
     for (const name of ["cobros", "presupuestos"]) expect((await call(`/api/reports/${name}?from=2026-11-01&to=2026-11-30`)).status).toBe(200);

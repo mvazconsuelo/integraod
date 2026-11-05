@@ -14,6 +14,10 @@ scripts/             new-app (sumar entidad), run-all (tests/tipos de todo)
 Cada carpeta se basta sola (su `wrangler.toml`, su base D1, sus secretos). Ninguna app importa código de otra: hablan con `payments`
 solo por una API interna **firmada**, cada una con su `client_id`.
 
+## Publicar el piloto con Docker y Cloudflare Tunnel
+
+`docker compose up -d --build` levanta la app y un túnel a tu dominio. Guía paso a paso en [docs/docker-cloudflare.md](docs/docker-cloudflare.md).
+
 ## Levantar el piloto (local, con pagos simulados)
 
 ```bash

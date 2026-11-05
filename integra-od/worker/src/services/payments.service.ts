@@ -1,3 +1,4 @@
+import { logoUrl } from "./logo.service";
 import type { Env } from "../types/env";
 import * as repo from "../repositories/payments.repository";
 import * as budgetsRepo from "../repositories/budgets.repository";
@@ -103,14 +104,14 @@ export async function createRequest(
 
   // El anticipo se pide una sola vez, y no se puede pedir más de lo que falta cobrar ni pedir dos veces el mismo dinero.
   if (input.kind === "advance" && budget.has_advance) {
-    throw new AppError(422, "El anticipo de este presupuesto ya fue pedido. Para cobrar algo más, pedí un pago.", "advance_exists");
+    throw new AppError(422, "Este presupuesto ya tiene un anticipo pendiente o cobrado. Para cobrar algo más, creá otro cobro.", "advance_exists");
   }
   const balance = budgetBalance(budget.total_cents, budget.applied_cents);
   const requestable = requestableCents(balance, await listRequestsOfBudget(env.DB, input.budget_id));
   if (input.amount_cents > requestable) {
     throw new AppError(422, requestable === 0
-      ? "Ya pediste todo lo que falta cobrar de este presupuesto."
-      : `Lo máximo que podés pedir ahora es ${formatArs(requestable)} (al presupuesto le faltan ${formatArs(balance)}${requestable < balance ? ", y el resto ya lo pediste" : ""}).`, "exceeds_requestable");
+      ? "Ya está pendiente todo lo que falta cobrar de este presupuesto."
+      : `Lo máximo que podés cobrar ahora es ${formatArs(requestable)} (al presupuesto le faltan ${formatArs(balance)}${requestable < balance ? ", y el resto ya está pendiente" : ""}).`, "exceeds_requestable");
   }
   // El tipo y el texto del cobro los decide el sistema, igual para todos.
   const { kind, concept } = describePayment(input.amount_cents, { applied_cents: budget.applied_cents, balance_cents: balance, has_advance: Boolean(budget.has_advance), first_item: budget.first_item, item_count: budget.item_count });
@@ -118,7 +119,7 @@ export async function createRequest(
   // Reserva atómica: dos pedidos a la vez no pueden pasarse del saldo ni duplicar el anticipo.
   const reservationId = newId();
   if (!(await reserve(env.DB, { id: reservationId, budgetId: input.budget_id, amountCents: input.amount_cents, kind, today: todayLocal(), now: new Date() }))) {
-    throw new AppError(409, "Se está preparando otro cobro de este presupuesto, o ya no queda saldo para pedir. Esperá unos segundos y revisá el detalle.", "request_in_progress");
+    throw new AppError(409, "Se está preparando otro cobro de este presupuesto, o ya no queda saldo para cobrar. Esperá unos segundos y revisá el detalle.", "request_in_progress");
   }
   try {
     const { intent } = await client(env).createIntent({
@@ -154,6 +155,23 @@ export async function cancelOpenRequestsOfBudget(env: Env, budgetId: string) {
   }
 }
 
+/** Pedidos por Mercado Pago que siguen esperando que el cliente pague (los vencidos ya no se pueden pagar: no cuentan). */
+async function openOnlineRequests(db: D1Database, budgetId: string) {
+  const today = todayLocal();
+  return (await repo.listRequestsByBudget(db, budgetId)).filter((r) => r.provider !== "cash" && (r.status === "pending" || r.status === "partially_paid") && (!r.due_date || r.due_date >= today));
+}
+
+/**
+ * Regla de negocio: si el presupuesto se cobra por Mercado Pago, el pago llega solo; no se carga a mano.
+ * Para cobrarlo en efectivo o transferencia hay que editar el presupuesto y pasarlo (ver switchBudgetToManual).
+ */
+export async function switchBudgetToManual(env: Env, budgetId: string) {
+  const open = await openOnlineRequests(env.DB, budgetId);
+  if (open.some((r) => r.paid_cents > 0)) throw new AppError(409, "Ya se recibió una parte por Mercado Pago de un cobro. Hasta que se complete no se puede pasar a efectivo o transferencia.", "online_partially_paid");
+  for (const r of open) await cancelRequest(env, r.id);
+  await audit(env.DB, { action: "budget.collect_manual", entity: "budget", entityId: budgetId, detail: { cancelled_requests: open.length } });
+}
+
 export async function registerManualPayment(
   env: Env,
   input: { patient_ref: string; amount_cents: number; method: "cash" | "transfer"; budget_id: string; request_id: string | null; paid_on?: string; notes: string; idempotency_key?: string; /** Lo decide el sistema; se acepta por compatibilidad y se ignora. */ concept?: string; kind?: repo.PaymentKind },
@@ -164,6 +182,9 @@ export async function registerManualPayment(
   if (request && request.budget_id !== input.budget_id) throw new AppError(422, "Ese cobro pertenece a otro presupuesto.");
   if (request?.status === "cancelled") throw new AppError(409, "Ese cobro está cancelado.");
   const budget = await requireOpenBudget(db, input.budget_id);
+  if (request?.provider !== "cash" && (await openOnlineRequests(db, input.budget_id)).length > 0) {
+    throw new AppError(409, "Este presupuesto se cobra por Mercado Pago: el pago llega cuando el destinatario paga. Para cobrarlo en efectivo o transferencia, editá el presupuesto y pasalo a efectivo o transferencia.", "collects_online");
+  }
   const balance = budgetBalance(budget.total_cents, budget.applied_cents);
   if (input.amount_cents > balance) {
     throw new AppError(422, balance === 0 ? "Este presupuesto ya está pagado por completo." : `El importe supera lo que falta cobrar del presupuesto (${formatArs(balance)}).`, "exceeds_balance");
@@ -210,7 +231,7 @@ export async function publicView(db: D1Database, publicId: string) {
   const open = d.display_status === "pending" || d.display_status === "partially_paid";
   return {
     // Datos de cliente del negocio: quien paga tiene que poder saber con quién habla y cómo consultar. Nada del presupuesto.
-    clinic: { name: s.name, logo_data_url: s.logo_data_url, primary_color: s.primary_color, phone: s.phone, email: s.email, address: s.address, professional_info: s.professional_info },
+    clinic: { name: s.name, logo_url: logoUrl(s.logo_version), primary_color: s.primary_color, phone: s.phone, email: s.email, address: s.address, professional_info: s.professional_info },
     patient_ref: r.patient_ref,
     concept: r.concept,
     amount_cents: r.amount_cents,

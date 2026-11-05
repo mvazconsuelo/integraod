@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 interface Option<T extends string> { value: T; label: string; disabled?: boolean }
 
 /** Elección entre pocas opciones con botones grandes (mejor que un desplegable cuando son 2 o 3). */
-export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: Option<T>[]; label: string }) {
+export function Segmented<T extends string>({ value, onChange, options, label, wrap }: { value: T; onChange: (v: T) => void; options: Option<T>[]; label: string; /** Dos columnas en pantallas chicas: para etiquetas largas. */ wrap?: boolean }) {
   return (
-    <div role="radiogroup" aria-label={label} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
+    <div role="radiogroup" aria-label={label} className={cn("grid gap-2", wrap && "max-sm:!grid-cols-2")} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
       {options.map((o) => {
         const selected = o.value === value;
         return (

@@ -37,8 +37,8 @@ export function ContactDialog({ open, onOpenChange, contact, onSaved }: Props) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={contact ? "Editar cliente" : "Nuevo cliente"}
-      footer={<Button form="contact-form" className="w-full" disabled={busy}>{duplicate ? "Guardar igual" : contact ? "Guardar cambios" : "Guardar cliente"}</Button>}>
+    <Dialog open={open} onOpenChange={onOpenChange} title={contact ? "Editar destinatario" : "Nuevo destinatario"}
+      footer={<Button form="contact-form" className="w-full" disabled={busy}>{duplicate ? "Guardar igual" : contact ? "Guardar cambios" : "Guardar destinatario"}</Button>}>
       <form id="contact-form" className="space-y-4" onSubmit={(e) => { e.preventDefault(); void save(duplicate); }}>
         <NameFields autoFocus={!contact} first={names.first} last={names.last} onChange={setNames} />
         <Field label="Teléfono (opcional)" hint="Solo hace falta para escribirle por WhatsApp."><Input autoComplete="off" inputMode="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setDuplicate(false); }} /></Field>

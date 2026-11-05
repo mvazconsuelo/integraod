@@ -17,7 +17,7 @@ export interface ActivityEvent {
   simulated?: boolean;
 }
 
-const KIND_WORD: Record<string, string> = { advance: "un anticipo", partial: "un pago", final: "el pago final" };
+const KIND_WORD: Record<string, string> = { advance: "Anticipo pendiente", partial: "Pago pendiente", final: "Pago final pendiente" };
 
 export async function listActivity(db: D1Database, limit = 60): Promise<ActivityEvent[]> {
   const events: ActivityEvent[] = [];
@@ -38,8 +38,8 @@ export async function listActivity(db: D1Database, limit = 60): Promise<Activity
 
   const { results: requests } = await db.prepare("SELECT id, patient_ref, amount_cents, kind, provider, budget_id, created_at, cancelled_at, status FROM payment_requests").all<{ id: string; patient_ref: string; amount_cents: number; kind: string; provider: string; created_at: string; cancelled_at: string | null; status: string }>();
   for (const r of requests) {
-    const how = r.provider === "cash" ? " para cobrar en efectivo" : "";
-    events.push({ id: `r-${r.id}`, at: r.created_at, type: "request", text: `Solicitaste ${KIND_WORD[r.kind] ?? "un pago"} de ${formatArs(r.amount_cents)} a ${r.patient_ref}${how}`, detail: "Todavía no es dinero recibido", to: `/cobros/${r.id}`, simulated: r.provider === "mock" });
+    const how = r.provider === "cash" ? ", sin link de pago" : "";
+    events.push({ id: `r-${r.id}`, at: r.created_at, type: "request", text: `${KIND_WORD[r.kind] ?? "Pago pendiente"} de ${formatArs(r.amount_cents)} de ${r.patient_ref}${how}`, detail: "Todavía no es dinero recibido", to: `/cobros/${r.id}`, simulated: r.provider === "mock" });
     if (r.status === "cancelled") events.push({ id: `rc-${r.id}`, at: r.cancelled_at ?? r.created_at, type: "request", text: `Cancelaste el cobro de ${formatArs(r.amount_cents)} a ${r.patient_ref}`, to: `/cobros/${r.id}`, simulated: r.provider === "mock" });
   }
 

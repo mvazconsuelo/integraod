@@ -15,10 +15,10 @@ describe("listado de servicios", () => {
     const { createBudget } = await import("../worker/src/services/budgets.service");
     const item = (description: string, unit_price_cents: number) => ({ description, quantity: 1, unit_price_cents, discount_pct: 0 });
     const base = { patient_ref: "Ana Pérez", issued_on: "2026-11-03", valid_until: null, notes: "" };
-    await createBudget(db, { ...base, items: [item("Instalación de cocina", 25_000_000), item("Pintura", 8_000_000)] });
-    await createBudget(db, { ...base, items: [item("instalación de cocina ", 30_000_000)] });
+    await createBudget(db, { ...base, items: [item("Limpieza dental", 25_000_000), item("Blanqueamiento", 8_000_000)] });
+    await createBudget(db, { ...base, items: [item("limpieza dental ", 30_000_000)] });
     const recent = await svc.listRecentWork(db);
-    expect(recent.map((r) => r.name)).toEqual(["instalación de cocina", "Pintura"]); // sin repetir, el más nuevo primero
+    expect(recent.map((r) => r.name)).toEqual(["limpieza dental", "Blanqueamiento"]); // sin repetir, el más nuevo primero
     expect(recent[0].price_cents).toBe(30_000_000); // el último precio usado
   });
   it("permite agregar, cambiar el precio y eliminar", async () => {
@@ -29,12 +29,12 @@ describe("listado de servicios", () => {
     await expect(svc.updateTreatment(db, "no-existe", { name: "x", category: "y", price_cents: 0 })).rejects.toThrow(/No encontramos/);
   });
   it("renombra una categoría completa y la elimina con sus servicios", async () => {
-    await svc.createTreatment(db, { name: "Pintura", category: "Obra", price_cents: 0 });
-    await svc.createTreatment(db, { name: "Albañilería", category: "Obra", price_cents: 0 });
-    await svc.renameCategory(db, "Obra", "Obras");
-    expect((await svc.listTreatments(db)).filter((t) => t.category === "Obras")).toHaveLength(2);
-    await expect(svc.renameCategory(db, "Obra", "X")).rejects.toThrow(/No encontramos/);
-    await svc.deleteCategory(db, "Obras");
+    await svc.createTreatment(db, { name: "Blanqueamiento", category: "Estética", price_cents: 0 });
+    await svc.createTreatment(db, { name: "Carillas", category: "Estética", price_cents: 0 });
+    await svc.renameCategory(db, "Estética", "Estética dental");
+    expect((await svc.listTreatments(db)).filter((t) => t.category === "Estética dental")).toHaveLength(2);
+    await expect(svc.renameCategory(db, "Estética", "X")).rejects.toThrow(/No encontramos/);
+    await svc.deleteCategory(db, "Estética dental");
     expect(await svc.listTreatments(db)).toEqual([]);
   });
 

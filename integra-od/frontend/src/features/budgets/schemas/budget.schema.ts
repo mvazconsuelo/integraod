@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 export const budgetFormSchema = z.object({
-  patient_ref: z.string().trim().min(1, "Elegí o creá al cliente."),
-  patient_id: z.string().min(1, "Elegí o creá al cliente."),
+  patient_ref: z.string().trim().min(1, "Elegí o creá al destinatario."),
+  patient_id: z.string().min(1, "Elegí o creá al destinatario."),
   issued_on: z.string().min(1, "Elegí la fecha de emisión."),
   valid_until: z.string(),
   notes: z.string().max(2000),
@@ -10,6 +10,7 @@ export const budgetFormSchema = z.object({
     .array(
       z.object({
         description: z.string().trim().min(1, "Escribí o elegí el concepto."),
+        detail: z.string().max(1000, "Máximo 1000 letras."),
         quantity: z.number({ invalid_type_error: "Ingresá la cantidad." }).int().min(1, "Mínimo 1."),
         unit_price_cents: z.number().min(0),
         discount_pct: z.number({ invalid_type_error: "0 a 100." }).int().min(0, "0 a 100.").max(100, "0 a 100."),

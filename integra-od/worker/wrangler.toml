@@ -17,6 +17,12 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
 
+# Archivos (el logo): R2. En producción hay que crear el bucket una vez:  npx wrangler r2 bucket create integra-od-files
+# En local, `wrangler dev` lo emula y lo guarda junto con las bases (--persist-to).
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "integra-od-files"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "integra-od"

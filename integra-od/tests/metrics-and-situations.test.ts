@@ -113,10 +113,14 @@ describe("Fase 1 · respuestas del cliente y tasa de aceptación", () => {
     await budgets.recordAnswer(db, no, "declined");
     expect(await rate()).toMatchObject({ accepted: 1, declined: 1, waiting: 0, rate_pct: 50 });
   });
-  it("cancelar no es rechazar: un cancelado sin respuesta no entra en la tasa", async () => {
+  it("cancelar se entiende como rechazo del cliente; si se reabre, el rechazo deja de contar", async () => {
     const b = await newBudget();
     await budgets.changeStatus(db, b, "cancelled");
-    expect(await rate()).toMatchObject({ declined: 0, waiting: 0, rate_pct: null });
+    expect(await rate()).toMatchObject({ accepted: 0, declined: 1, waiting: 0, rate_pct: 0 });
+    expect((await budgets.getBudgetDetail(db, b)).answer).toBe("declined");
+    await budgets.changeStatus(db, b, "sent");
+    expect(await rate()).toMatchObject({ declined: 0, waiting: 1, rate_pct: null });
+    expect((await budgets.getBudgetDetail(db, b)).answer).toBeNull();
   });
   it("el primer pago real es la aceptación; un pago simulado no", async () => {
     const real = await newBudget(); const sim = await newBudget();
@@ -254,5 +258,99 @@ describe("Fase 3 · ciclo de vida del dinero", () => {
     const b = await newBudget();
     const p = (await cashPay(b, PESOS(10_000), { kind: "final" }))!; // el cliente dice "final": se ignora
     expect(p.kind).toBe("advance");
+  });
+});
+
+describe("Modalidad de cobro del presupuesto", () => {
+  it("arranca sin definir, se puede definir y cambiar, y no se deduce de los pagos", async () => {
+    const b = await newBudget();
+    expect((await detail(b)).payment_mode).toBeNull();
+    await cashPay(b, PESOS(30_000)); // un anticipo recibido NO define la modalidad
+    expect((await detail(b)).payment_mode).toBeNull();
+    await budgets.setPaymentMode(db, b, "advance");
+    expect((await detail(b)).payment_mode).toBe("advance");
+    await budgets.setPaymentMode(db, b, null);
+    expect((await detail(b)).payment_mode).toBeNull();
+  });
+  it("no cambia saldos ni se puede definir en un presupuesto cancelado", async () => {
+    const b = await newBudget();
+    await budgets.setPaymentMode(db, b, "total");
+    expect((await detail(b)).balance_cents).toBe(PESOS(100_000));
+    await budgets.changeStatus(db, b, "cancelled");
+    await expect(budgets.setPaymentMode(db, b, "partial")).rejects.toMatchObject({ status: 409 });
+  });
+  it("el medio de pago pertenece a cada movimiento: un mismo trabajo puede tener varios", async () => {
+    const b = await newBudget();
+    await cashPay(b, PESOS(30_000));
+    await payments.registerManualPayment(s.core, { patient_ref: "Ana Pérez", amount_cents: PESOS(70_000), method: "transfer", budget_id: b, request_id: null, notes: "" });
+    const methods = (await detail(b)).applications.map((a) => a.method).sort();
+    expect(methods).toEqual(["cash", "transfer"]);
+  });
+});
+
+describe("Regla: Mercado Pago o efectivo/transferencia", () => {
+  it("con un pedido por Mercado Pago esperando no se puede cargar un pago a mano; pasarlo cierra el pedido", async () => {
+    const b = await newBudget();
+    await ask(b, PESOS(30_000));
+    await expect(cashPay(b, PESOS(10_000))).rejects.toMatchObject({ code: "collects_online" });
+    expect((await detail(b)).collects_online).toBe(true);
+    await payments.switchBudgetToManual(s.core, b);
+    expect((await detail(b)).collects_online).toBe(false);
+    await cashPay(b, PESOS(10_000));
+    expect((await detail(b)).applied_cents).toBe(PESOS(10_000));
+  });
+  it("sin pedidos por Mercado Pago el cobro a mano sigue libre, y un pedido vencido ya no lo bloquea", async () => {
+    const b = await newBudget();
+    await cashPay(b, PESOS(10_000));
+    const r = await ask(b, PESOS(20_000));
+    await db.prepare("UPDATE payment_requests SET due_date = '2020-01-01' WHERE id = ?").bind(r.id).run();
+    await cashPay(b, PESOS(5_000)); // el pedido venció: no se puede pagar, no bloquea
+    expect((await detail(b)).applied_cents).toBe(PESOS(15_000));
+  });
+});
+
+describe("Detalle de cada concepto", () => {
+  it("se guarda con el presupuesto, se devuelve en el detalle y se puede editar; sin detalle queda vacío", async () => {
+    const b = await budgets.createBudget(db, { patient_ref: "Ana Pérez", issued_on: todayLocal(), valid_until: null, notes: "", items: [
+      { description: "Resina", detail: "Piezas 16 y 26. Incluye radiografía.", quantity: 1, unit_price_cents: PESOS(40_000), discount_pct: 0 },
+      { description: "Limpieza", quantity: 1, unit_price_cents: PESOS(20_000), discount_pct: 0 },
+    ] });
+    const d = await detail(b.id);
+    expect(d.items.map((i) => i.detail)).toEqual(["Piezas 16 y 26. Incluye radiografía.", ""]);
+    await budgets.updateBudget(db, b.id, { patient_ref: "Ana Pérez", issued_on: todayLocal(), valid_until: null, notes: "", items: [{ description: "Resina", detail: "Solo pieza 16.", quantity: 1, unit_price_cents: PESOS(40_000), discount_pct: 0 }] });
+    expect((await detail(b.id)).items.map((i) => i.detail)).toEqual(["Solo pieza 16."]);
+  });
+});
+
+describe("Métricas · saldos más viejos", () => {
+  const payOn = async (budgetId: string, amount: number, daysAgo: number) => {
+    await cashPay(budgetId, amount);
+    const at = new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+    await db.prepare("UPDATE payments SET paid_at = ? WHERE id = (SELECT id FROM payments ORDER BY rowid DESC LIMIT 1)").bind(at).run();
+  };
+  it("ordena por último pago real (el más viejo primero), con los días desde ese pago", async () => {
+    const recent = await newBudget(PESOS(100_000));
+    const old = await newBudget(PESOS(80_000));
+    await payOn(recent, PESOS(10_000), 2);
+    await payOn(old, PESOS(20_000), 40);
+    const { oldest_balances: list } = await summary();
+    expect(list.map((x) => x.id)).toEqual([old, recent]);
+    expect(list[0]).toMatchObject({ balance_cents: PESOS(60_000), days_since_payment: 40 });
+    expect(list[1]).toMatchObject({ balance_cents: PESOS(90_000), days_since_payment: 2 });
+  });
+  it("no incluye presupuestos cobrados, cancelados ni sin pagos, ni cuenta pagos simulados", async () => {
+    const paid = await newBudget(PESOS(10_000));
+    await cashPay(paid, PESOS(10_000));
+    const cancelled = await newBudget(PESOS(10_000));
+    await budgets.changeStatus(db, cancelled, "cancelled");
+    const untouched = await newBudget(PESOS(10_000));
+    const mockOnly = await newBudget(PESOS(10_000));
+    await mockPay(mockOnly, PESOS(5_000));
+    expect((await summary()).oldest_balances).toEqual([]);
+    expect(untouched).toBeTruthy();
+  });
+  it("muestra como máximo 5", async () => {
+    for (let i = 0; i < 7; i++) { const b = await newBudget(PESOS(10_000)); await cashPay(b, PESOS(1_000)); }
+    expect((await summary()).oldest_balances).toHaveLength(5);
   });
 });

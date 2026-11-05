@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, Copy, MessageCircle } from "lucide-react";
+import { Check, Copy } from "lucide-react";
+import { WhatsAppIcon } from "@/components/ui/whatsapp-icon";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog } from "@/components/ui/dialog";
@@ -8,6 +9,7 @@ import { Dropdown } from "@/components/ui/dropdown";
 import { Textarea } from "@/components/ui/input";
 import { AmountField } from "@/components/shared/AmountField";
 import { Field } from "@/components/shared/Field";
+import { Segmented } from "@/components/ui/segmented";
 import { PercentQuick } from "@/components/shared/PercentQuick";
 import { useSettings } from "@/app/providers";
 import { useApi } from "@/hooks/useApi";
@@ -49,10 +51,10 @@ export function RequestPayDialog({ open, onOpenChange, onCreated, budgetId, budg
   const [pct, setPct] = useState<number | null>(initial?.amount_cents ? null : savedPct());
   const [cents, setCents] = useState(initial?.amount_cents ?? 0);
   const [amountKey, setAmountKey] = useState(0);
+  // Una parte (porcentaje o importe) o todo lo que falta. Con algo ya cobrado, lo habitual es pedir el resto.
+  const [scope, setScope] = useState<"part" | "all">(initial?.amount_cents ? "part" : fixed && fixed.applied_cents > 0 ? "all" : "part");
   const [dueDate, setDueDate] = useState("");
-  const [showDue, setShowDue] = useState(false);
   const [conditions, setConditions] = useState(initial?.conditions ?? "");
-  const [showConditions, setShowConditions] = useState(Boolean(initial?.conditions));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<RequestDetail | null>(null);
@@ -70,9 +72,9 @@ export function RequestPayDialog({ open, onOpenChange, onCreated, budgetId, budg
 
   const submit = async () => {
     setError("");
-    if (!budget) return setError("Elegí de qué presupuesto es el pedido.");
-    if (cents <= 0) return setError("Ingresá cuánto vas a pedir.");
-    if (cents > limit) return setError(`Lo máximo que podés pedir es ${formatMoney(limit)}.`);
+    if (!budget) return setError("Elegí de qué presupuesto es el cobro.");
+    if (cents <= 0) return setError("Ingresá el importe.");
+    if (cents > limit) return setError(`Lo máximo que podés cobrar ahora es ${formatMoney(limit)}.`);
     setBusy(true);
     try {
       const r = await createRequest({ method: "online", patient_ref: budget.patient_ref, amount_cents: cents, budget_id: budget.id, conditions, due_date: dueDate || null });
@@ -80,7 +82,7 @@ export function RequestPayDialog({ open, onOpenChange, onCreated, budgetId, budg
       setCreated(r);
       onCreated();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos crear el pedido.");
+      setError(e instanceof Error ? e.message : "No pudimos crear el link de pago.");
     } finally { setBusy(false); }
   };
 
@@ -88,12 +90,12 @@ export function RequestPayDialog({ open, onOpenChange, onCreated, budgetId, budg
     const link = publicLink(created.public_id);
     const text = `Hola ${created.patient_ref}, te comparto el link para pagar ${created.concept} (${formatMoney(created.amount_cents)}): ${link}`;
     return (
-      <Dialog open={open} onOpenChange={onOpenChange} title={`Pediste ${formatMoney(created.amount_cents)}`} description="Todavía no es dinero recibido: queda esperando hasta que el pago se confirme.">
+      <Dialog fullScreen open={open} onOpenChange={onOpenChange} title={`Pendiente: ${formatMoney(created.amount_cents)}`} description="Todavía no es dinero recibido: queda esperando hasta que el pago se confirme.">
         <div className="space-y-4">
           <div className="select-all break-all rounded-lg bg-soft px-3 py-2 text-sm tabular">{link}</div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button className="flex-1" onClick={() => void copy(link)}>{copyState === "copied" ? <Check size={16} /> : <Copy size={16} />}{copyState === "copied" ? "Copiado" : copyState === "failed" ? "No se pudo copiar" : "Copiar link"}</Button>
-            <Button className="flex-1" variant="secondary" asChild><a href={whatsappUrl(waPhone, text)} target="_blank" rel="noreferrer"><MessageCircle size={16} />Mandar por WhatsApp</a></Button>
+            <Button className="flex-1" variant="secondary" asChild><a href={whatsappUrl(waPhone, text)} target="_blank" rel="noreferrer">Compartir<WhatsAppIcon size={18} /></a></Button>
           </div>
           <Button variant="ghost" className="w-full" onClick={() => onOpenChange(false)}>Listo</Button>
         </div>
@@ -102,29 +104,35 @@ export function RequestPayDialog({ open, onOpenChange, onCreated, budgetId, budg
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Pedir un pago" description="Generamos un link para que pague con Mercado Pago."
-      footer={<Button className="w-full" disabled={busy || !onlineReady || !budget} onClick={() => void submit()}>Pedir {cents > 0 ? formatMoney(cents) : "pago"}</Button>}>
+    <Dialog fullScreen open={open} onOpenChange={onOpenChange} title="Nuevo pago" description="Generamos un link para que pague con Mercado Pago."
+      footer={<Button className="w-full" disabled={busy || !onlineReady || !budget} onClick={() => void submit()}>Crear link{cents > 0 ? ` de ${formatMoney(cents)}` : ""}</Button>}>
       <div className="space-y-5">
-        {!onlineReady && <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-[#7a5222]">Para pedir con link, primero conectá Mercado Pago en <Link to="/configuracion?seccion=mercadopago" className="font-medium underline">Configuración</Link>.</p>}
+        {!onlineReady && <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-[#7a5222]">Para cobrar con link, primero conectá Mercado Pago en <Link to="/configuracion?seccion=mercadopago" className="font-medium underline">Configuración</Link>.</p>}
         {fixed
           ? <p className="rounded-lg bg-soft px-3 py-2 text-sm"><strong>{fixed.patient_ref}</strong> · {workOf(fixed)} · falta {formatMoney(fixed.balance_cents)}</p>
           : candidates.length === 0 && !budgets.loading
             ? <p className="rounded-lg bg-soft px-3 py-3 text-sm">No hay presupuestos con plata pendiente. Creá un presupuesto primero.</p>
-            : <Field label="¿De qué presupuesto?"><Dropdown value={pickedId} onChange={setPickedId} placeholder="Buscá por cliente o concepto" options={candidates.map((b) => ({ value: b.id, label: b.patient_ref, hint: workOf(b), trailing: `Falta ${formatMoney(b.balance_cents)}` }))} /></Field>}
+            : <Field label="¿De qué presupuesto?"><Dropdown value={pickedId} onChange={setPickedId} placeholder="Buscá por destinatario o concepto" options={candidates.map((b) => ({ value: b.id, label: b.patient_ref, hint: workOf(b), trailing: `Falta ${formatMoney(b.balance_cents)}` }))} /></Field>}
         {budget && (
           <>
             <div className="space-y-3">
-              <PercentQuick selected={pct} onPick={pick} />
-              <Field label="¿Cuánto?" hint={`Hasta ${formatMoney(limit)}. `}>
-                <AmountField key={amountKey} valueCents={cents} onChange={(c) => { setCents(c); setPct(null); }} />
-              </Field>
-              {limit > 0 && <button type="button" onClick={() => { setPct(null); setCents(limit); setAmountKey((k) => k + 1); }} className="-mt-1 cursor-pointer text-sm font-medium text-secondary hover:underline">Pedir todo lo que falta ({formatMoney(limit)})</button>}
+              <Segmented label="Una parte o el total" value={scope} onChange={(v) => { setScope(v); if (v === "all") { setPct(null); setCents(limit); setAmountKey((k) => k + 1); } else pick(pct ?? savedPct()); }}
+                options={[{ value: "part", label: "Una parte" }, { value: "all", label: "Total" }]} />
+              {scope === "part" ? (
+                <>
+                  <PercentQuick selected={pct} onPick={pick} />
+                  <Field label="¿Cuánto?" hint={`Hasta ${formatMoney(limit)}. `}>
+                    <AmountField key={amountKey} valueCents={cents} onChange={(c) => { setCents(c); setPct(null); }} />
+                  </Field>
+                </>
+              ) : (
+                <p className="text-[15px]">Total a cobrar: <strong className="tabular">{formatMoney(limit)}</strong></p>
+              )}
             </div>
-            <div className="space-y-3 text-sm">
-              {showDue ? <Field plain label="Vence"><DatePicker value={dueDate} onChange={setDueDate} clearable placeholder="Sin vencimiento" /></Field>
-                : <button type="button" onClick={() => setShowDue(true)} className="cursor-pointer font-medium text-secondary hover:underline">+ Poner vencimiento</button>}
-              {showConditions ? <Field label="Condiciones"><Textarea autoFocus className="min-h-16" value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="Ej: El anticipo se retiene si cancelás con menos de 24 hs." /></Field>
-                : <div><button type="button" onClick={() => setShowConditions(true)} className="cursor-pointer font-medium text-secondary hover:underline">+ Agregar condiciones</button></div>}
+            <div className="space-y-4 border-t pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Opcional</p>
+              <Field label="Vencimiento"><DatePicker value={dueDate} onChange={setDueDate} clearable placeholder="Sin vencimiento" /></Field>
+              <Field label="Condiciones"><Textarea className="min-h-20" value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="Ej: El anticipo se retiene si cancelás con menos de 24 hs." /></Field>
             </div>
           </>
         )}

@@ -67,7 +67,7 @@ export async function getPatientDetail(db: D1Database, name: string) {
   const payments = all.payments.filter((p) => keyOf(p.patient_ref) === key);
   const contact = key ? await patientByNameKey(db, key) : null;
   if (!key || (budgets.length + requests.length + payments.length === 0 && !contact)) {
-    throw new AppError(404, "No encontramos a ese cliente.");
+    throw new AppError(404, "No encontramos a ese destinatario.");
   }
 
   const live = budgets.filter((b) => b.status !== "cancelled");
@@ -101,7 +101,7 @@ export async function listContacts(db: D1Database) {
 
 const cleanName = (raw: string) => {
   const name = raw.trim().replace(/\s+/g, " ");
-  if (!name) throw new AppError(422, "Escribí el nombre completo del cliente.", "name_required");
+  if (!name) throw new AppError(422, "Escribí el nombre completo del destinatario.", "name_required");
   if (name.length > 120) throw new AppError(422, "El nombre es demasiado largo.", "name_too_long");
   return name;
 };
@@ -124,7 +124,7 @@ async function ensurePhoneFree(db: D1Database, phone: string, allowDuplicate: bo
 export async function createPatient(db: D1Database, input: { name: string; phone?: string; allow_duplicate_phone?: boolean }) {
   const name = cleanName(input.name);
   const phone = cleanPhone(input.phone ?? "");
-  if (await patientByNameKey(db, keyOf(name))) throw new AppError(409, "Ya existe un cliente con ese nombre. Elegilo de la lista, o agregá algo que los distinga.", "name_exists");
+  if (await patientByNameKey(db, keyOf(name))) throw new AppError(409, "Ya existe un destinatario con ese nombre. Elegilo de la lista, o agregá algo que los distinga.", "name_exists");
   if (phone) await ensurePhoneFree(db, phone, Boolean(input.allow_duplicate_phone));
   const id = newId();
   await insertPatient(db, { id, name, phone, now: nowIso() });
@@ -134,12 +134,12 @@ export async function createPatient(db: D1Database, input: { name: string; phone
 
 export async function updatePatient(db: D1Database, id: string, input: { name?: string; phone?: string; allow_duplicate_phone?: boolean }) {
   const current = await patientById(db, id);
-  if (!current) throw new AppError(404, "No encontramos a ese cliente.");
+  if (!current) throw new AppError(404, "No encontramos a ese destinatario.");
   const name = input.name !== undefined ? cleanName(input.name) : current.name;
   const phone = input.phone !== undefined ? cleanPhone(input.phone) : current.phone;
   if (keyOf(name) !== current.name_key) {
     const clash = await patientByNameKey(db, keyOf(name));
-    if (clash && clash.id !== id) throw new AppError(409, "Ya existe otro cliente con ese nombre.", "name_exists");
+    if (clash && clash.id !== id) throw new AppError(409, "Ya existe otro destinatario con ese nombre.", "name_exists");
   }
   if (phone && phone !== current.phone) await ensurePhoneFree(db, phone, Boolean(input.allow_duplicate_phone), id);
   await updatePatientRow(db, current, { name, phone, now: nowIso() });
@@ -150,7 +150,7 @@ export async function updatePatient(db: D1Database, id: string, input: { name?: 
 /** Borra un cliente que nunca tuvo presupuestos ni cobros. Con historial se conserva: el dinero y los presupuestos no se pierden. */
 export async function deletePatient(db: D1Database, id: string) {
   const p = await patientById(db, id);
-  if (!p) throw new AppError(404, "No encontramos a ese cliente.");
+  if (!p) throw new AppError(404, "No encontramos a ese destinatario.");
   if ((await patientUsage(db, p)) > 0) throw new AppError(409, `${p.name} tiene presupuestos o cobros, así que no se puede borrar. Se conserva para no perder el historial.`, "patient_in_use");
   await deletePatientRow(db, id);
   await audit(db, { action: "contact.deleted", entity: "contact", entityId: id, detail: { name: p.name } });
@@ -163,7 +163,7 @@ export async function deletePatient(db: D1Database, id: string) {
 export async function resolvePatientForBudget(db: D1Database, input: { patient_ref: string; patient_id?: string | null }): Promise<PatientRow> {
   if (input.patient_id) {
     const p = await patientById(db, input.patient_id);
-    if (!p) throw new AppError(404, "No encontramos a ese cliente.");
+    if (!p) throw new AppError(404, "No encontramos a ese destinatario.");
     return p;
   }
   const name = cleanName(input.patient_ref);

@@ -12,11 +12,12 @@ const REAL = "p.provider <> 'mock'";
  *  - Trabajos concretados: presupuestos cuyo PRIMER pago real confirmado cayó en el período (un presupuesto se acepta pagando).
  *  - Importe promedio: promedio del total de esos presupuestos concretados.
  *  - Tasa de aceptación: de los emitidos en el período con respuesta EXPRESA: aceptados ÷ (aceptados + rechazados).
- *    Cancelar no es rechazar y los que esperan respuesta no entran. Sin respuestas todavía: no hay tasa (null).
+ *    Cancelar un presupuesto cuenta como rechazo del cliente (regla de negocio); los que esperan respuesta no entran. Sin respuestas todavía: no hay tasa (null).
  *  - Saldo real: las aplicaciones de pagos simulados no lo reducen (ver SQL_BUDGET_APPLIED).
  *  - Trabajos con saldo (de hoy): presupuestos En curso.
  *  - Pagos recibidos: cantidad de pagos aprobados y reales del período (cada pago cuenta una vez).
  *  - Anticipos recibidos: presupuestos con un anticipo real confirmado en el período.
+ *  - Saldos más viejos: hasta 5 presupuestos En curso con saldo, ordenados por la fecha de su último pago real (días desde ese pago).
  *  - Sin presupuesto: pagos aprobados y reales que todavía no se aplicaron a ningún presupuesto.
  */
 // Cada presupuesto con su fecha de aceptación: el primer pago real confirmado que se le aplicó (sin anulaciones ni cancelados).
@@ -98,6 +99,18 @@ export async function getSummary(db: D1Database, from: string, to: string) {
     )
     .first<{ balance: number }>();
 
+  // Los saldos que más tiempo llevan sin movimiento: de los presupuestos En curso, ordenados por su último pago real (el más viejo primero).
+  const { results: oldest } = await db
+    .prepare(
+      `SELECT b.id AS id, b.number AS number, b.patient_ref AS patient_ref, (b.total_cents - ${SQL_BUDGET_APPLIED}) AS balance_cents,
+              (SELECT MAX(p.paid_at) FROM payment_applications a JOIN payments p ON p.id = a.payment_id
+               WHERE a.budget_id = b.id AND a.voided_at IS NULL AND p.status = 'approved' AND p.provider <> 'mock') AS last_paid_at
+       FROM budgets b WHERE b.status = 'in_progress' AND (b.total_cents - ${SQL_BUDGET_APPLIED}) > 0
+       ORDER BY last_paid_at IS NULL, last_paid_at ASC, b.number ASC LIMIT 5`,
+    )
+    .all<{ id: string; number: number; patient_ref: string; balance_cents: number; last_paid_at: string | null }>();
+  const oldestBalances = oldest.map((o) => ({ ...o, days_since_payment: o.last_paid_at ? Math.max(0, Math.round((Date.parse(today) - Date.parse(o.last_paid_at.slice(0, 10))) / 86_400_000)) : null }));
+
   const issued = await db
     .prepare(`SELECT COUNT(*) AS count, COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN total_cents END),0) AS total, COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN 1 END),0) AS live FROM budgets WHERE issued_on BETWEEN ? AND ?`)
     .bind(from, to)
@@ -117,7 +130,7 @@ export async function getSummary(db: D1Database, from: string, to: string) {
               COALESCE(SUM(CASE WHEN ans = 'accepted' THEN 1 END),0) AS accepted,
               COALESCE(SUM(CASE WHEN ans = 'declined' THEN 1 END),0) AS declined,
               COALESCE(SUM(CASE WHEN ans IS NULL AND st <> 'cancelled' THEN 1 END),0) AS waiting
-       FROM (SELECT b.id AS id, b.status AS st, (SELECT e.type FROM budget_events e WHERE e.budget_id = b.id AND e.type IN ('accepted','declined') ORDER BY e.seq DESC LIMIT 1) AS ans
+       FROM (SELECT b.id AS id, b.status AS st, (SELECT e.type FROM budget_events e WHERE e.budget_id = b.id AND e.type IN ('accepted','declined') AND NOT (e.channel = 'cancel' AND b.status <> 'cancelled') ORDER BY e.seq DESC LIMIT 1) AS ans
              FROM budgets b WHERE b.issued_on BETWEEN ? AND ?) b`,
     )
     .bind(from, to)
@@ -169,6 +182,7 @@ export async function getSummary(db: D1Database, from: string, to: string) {
     money_unapplied_cents: unapplied!.total,
     pending_requests: requests!,
     budgets_balance_cents: budgetsOpen!.balance,
+    oldest_balances: oldestBalances,
     budgets_issued: { count: issued!.live, total: issued!.total },
     budgets_emitted_count: issued!.count,
     jobs_concreted: { count: concreted!.count, total_cents: concreted!.total },

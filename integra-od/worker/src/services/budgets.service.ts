@@ -17,7 +17,7 @@ interface BudgetInput {
   issued_on: string;
   valid_until: string | null;
   notes: string;
-  items: { description: string; quantity: number; unit_price_cents: number; discount_pct: number }[];
+  items: { description: string; detail?: string; quantity: number; unit_price_cents: number; discount_pct: number }[];
 }
 
 const withBalance = (b: BudgetRow) => ({
@@ -43,6 +43,8 @@ export async function getBudgetDetail(db: D1Database, id: string) {
     items,
     applications: await apps.listByBudget(db, id),
     requests,
+    /** Se cobra por Mercado Pago (hay un pedido esperando): el pago llega solo y no se carga a mano. */
+    collects_online: requests.some((r) => r.provider !== "cash" && (r.display_status === "pending" || r.display_status === "partially_paid")),
     timeline: await buildTimeline(db, id, detail.created_at, requests),
     /** Lo que todavía se puede pedir: saldo menos lo ya pedido y sin pagar. */
     requestable_cents: budget.status === "cancelled" ? 0 : requestableCents(detail.balance_cents, requests),
@@ -96,7 +98,12 @@ export async function changeStatus(db: D1Database, id: string, status: BudgetSta
   }
   await repo.setBudgetStatus(db, id, status, nowIso());
   await audit(db, { action: "budget.status", entity: "budget", entityId: id, detail: { from: b.status, to: status, by: "admin" } });
-  if (status === "cancelled") await hooks.cancelLinks?.(id);
+  // Regla de negocio: un presupuesto que se cancela se entiende como rechazado por el cliente (queda el evento, con canal "cancel").
+  // Si se reabre, ese rechazo deja de contar (ver answer en budgets.repository).
+  if (status === "cancelled") {
+    if (b.answer !== "declined") await repo.insertEvent(db, id, "declined", "cancel", nowIso());
+    await hooks.cancelLinks?.(id);
+  }
   return getBudgetDetail(db, id);
 }
 
@@ -126,7 +133,7 @@ async function buildTimeline(db: D1Database, id: string, createdAt: string, requ
   if (!events.some((e) => e.title === "Presupuesto creado")) events.push({ at: createdAt, type: "budget", title: "Presupuesto creado" }); // anteriores a la bitácora
   for (const r of requests) {
     const method = r.provider === "cash" ? "en efectivo" : "con link de pago";
-    events.push({ at: r.created_at, type: "request", title: `Cobro pedido ${method}`, detail: r.concept, amount_cents: r.amount_cents });
+    events.push({ at: r.created_at, type: "request", title: `Cobro pendiente ${method}`, detail: r.concept, amount_cents: r.amount_cents });
     if (r.status === "cancelled") events.push({ at: r.cancelled_at ?? r.created_at, type: "request", title: "Cobro cancelado", detail: r.concept, amount_cents: r.amount_cents });
   }
   for (const a of (await apps.listByBudget(db, id)) as { amount_cents: number; method: string; provider: string; kind: string; paid_at: string; created_at: string; voided_at: string | null; void_reason: string | null; concept: string }[]) {
@@ -152,5 +159,27 @@ export async function recordAnswer(db: D1Database, id: string, answer: "accepted
   if (b.answer === answer) return { ok: true };
   await repo.insertEvent(db, id, answer, "manual", nowIso());
   await audit(db, { action: `budget.${answer}`, entity: "budget", entityId: id, detail: {} });
+  return { ok: true };
+}
+
+/** Modalidad acordada para cobrar. Es informativa: no cambia saldos ni pagos. */
+export async function setPaymentMode(db: D1Database, id: string, mode: "total" | "advance" | "partial" | null) {
+  const b = await repo.getBudget(db, id);
+  if (!b) throw new AppError(404, "No encontramos ese presupuesto.");
+  if (b.status === "cancelled") throw new AppError(409, "Ese presupuesto está cancelado.");
+  if (b.payment_mode === mode) return { ok: true };
+  await repo.setPaymentMode(db, id, mode, nowIso());
+  await audit(db, { action: "budget.payment_mode", entity: "budget", entityId: id, detail: { from: b.payment_mode, to: mode } });
+  return { ok: true };
+}
+
+/** Medio de cobro elegido (Mercado Pago, transferencia o efectivo). Es informativo: no cambia saldos ni pagos. */
+export async function setCollectMethod(db: D1Database, id: string, method: "mercadopago" | "transfer" | "cash" | null) {
+  const b = await repo.getBudget(db, id);
+  if (!b) throw new AppError(404, "No encontramos ese presupuesto.");
+  if (b.status === "cancelled") throw new AppError(409, "Ese presupuesto está cancelado.");
+  if (b.collect_method === method) return { ok: true };
+  await repo.setCollectMethod(db, id, method, nowIso());
+  await audit(db, { action: "budget.collect_method", entity: "budget", entityId: id, detail: { from: b.collect_method, to: method } });
   return { ok: true };
 }

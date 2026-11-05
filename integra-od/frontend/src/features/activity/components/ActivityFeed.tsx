@@ -1,10 +1,10 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FilePlus2, HandCoins, Undo2, Wallet } from "lucide-react";
-import { History } from "lucide-react";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { ActivityTabs } from "@/components/shared/ActivityTabs";
 import { EmptyState } from "@/components/feedback/EmptyState";
 import { ErrorMessage, Loading } from "@/components/feedback/ErrorMessage";
+import { Pager, paginate } from "@/components/shared/Pager";
+import { SearchBox, normText } from "@/components/shared/SearchBox";
 import { useApi } from "@/hooks/useApi";
 import { formatDate, localDay, today, addDays } from "@/lib/formatters";
 import { clinicTimeZone } from "@/lib/time-zone";
@@ -22,17 +22,25 @@ function dayLabel(day: string): string {
 }
 
 /** Historial: lo que fue pasando, en frases y del más nuevo al más viejo. Cada línea lleva a su contexto. */
-export function ActivityPage() {
-  const { data, error, loading, reload } = useApi<ActivityEvent[]>("/activity");
+const PAGE_SIZE = 8;
+
+export function ActivityFeed() {
+  const { data, error, loading, reload } = useApi<ActivityEvent[]>("/activity?limit=200");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  // Se busca en la frase y en el detalle: nombre del cliente, importe, "pago", "anticipo"…
+  const q = normText(query.trim());
+  const kept = (data ?? []).filter((e) => !q || normText(`${e.text} ${e.detail ?? ""}`).includes(q));
+  const paged = paginate(kept, page, PAGE_SIZE);
   const groups = new Map<string, ActivityEvent[]>();
-  for (const e of data ?? []) { const d = localDay(e.at); groups.set(d, [...(groups.get(d) ?? []), e]); }
+  for (const e of paged.slice) { const d = localDay(e.at); groups.set(d, [...(groups.get(d) ?? []), e]); }
 
   return (
     <>
-      <ActivityTabs />
-      <PageHeader title="Historial" icon={History} />
       {error && <ErrorMessage message={error} onRetry={reload} />}
       {loading && !data && <Loading />}
+      {data && data.length > 0 && <div className="mb-4"><SearchBox label="Buscar en el historial" placeholder="Buscar por destinatario o importe" value={query} onChange={(v) => { setQuery(v); setPage(1); }} /></div>}
+      {data && data.length > 0 && kept.length === 0 && <EmptyState message="No encontramos nada con esa búsqueda." />}
       {data?.length === 0 && <EmptyState message="Todavía no hay movimientos. Cuando crees un presupuesto o recibas un pago, lo vas a ver acá." />}
       <div className="space-y-6">
         {[...groups].map(([day, events]) => (
@@ -56,6 +64,7 @@ export function ActivityPage() {
           </section>
         ))}
       </div>
+      <Pager page={paged.current} pages={paged.pages} onChange={setPage} />
     </>
   );
 }

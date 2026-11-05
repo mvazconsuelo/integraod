@@ -141,7 +141,8 @@ describe("pagos de Mercado Pago de punta a punta", () => {
     s = makeStack({ mock: false }); await connectMp(s.pay);
     const b = await budget(4_000_000);
     const r = await ask(b, 3_000_000, "advance");
-    await cash(b, 2_000_000);
+    // El saldo baja antes de que el cliente pague (por ejemplo, se ajustó el presupuesto): con un link abierto no se carga efectivo a mano.
+    await s.core.DB.prepare("UPDATE budgets SET total_cents = 2000000 WHERE id = ?").bind(b).run();
     s.pay.mp.set("777", { id: 777, status: "approved", transaction_amount: 30000, currency_id: "ARS", external_reference: r.external_reference, date_approved: null });
     await mpWebhook(s.pay, "777");
     expect((await detail(b)).balance_cents).toBe(0);
@@ -152,12 +153,12 @@ describe("pagos de Mercado Pago de punta a punta", () => {
 describe("reglas del presupuesto (las valida la app antes de pedirle nada al servicio)", () => {
   it("no se puede pedir más que el saldo ni pedir dos veces el mismo dinero", async () => {
     const b = await budget();
-    await expect(ask(b, 10_000_001)).rejects.toThrow(/Lo máximo que podés pedir ahora es/);
+    await expect(ask(b, 10_000_001)).rejects.toThrow(/Lo máximo que podés cobrar ahora es/);
     const first = await ask(b, 6_000_000);
     expect((await detail(b)).requestable_cents).toBe(4_000_000);
-    await expect(ask(b, 5_000_000)).rejects.toThrow(/el resto ya lo pediste/);
+    await expect(ask(b, 5_000_000)).rejects.toThrow(/el resto ya está pendiente/);
     await ask(b, 4_000_000);
-    await expect(ask(b, 1)).rejects.toThrow(/Ya pediste todo lo que falta/);
+    await expect(ask(b, 1)).rejects.toThrow(/Ya está pendiente todo lo que falta/);
     await payments.cancelRequest(s.core, first.id);
     expect((await detail(b)).requestable_cents).toBe(6_000_000);
   });
@@ -166,7 +167,7 @@ describe("reglas del presupuesto (las valida la app antes de pedirle nada al ser
     const b = await budget();
     const first = await ask(b, 1_000_000, "advance");
     expect((await detail(b)).has_advance).toBe(true);
-    await expect(ask(b, 1_000_000, "advance")).rejects.toThrow(/ya fue pedido/);
+    await expect(ask(b, 1_000_000, "advance")).rejects.toThrow(/ya tiene un anticipo/);
     await ask(b, 1_000_000, "partial");
     await payments.cancelRequest(s.core, first.id);
     expect((await detail(b)).has_advance).toBe(false);
@@ -176,7 +177,7 @@ describe("reglas del presupuesto (las valida la app antes de pedirle nada al ser
     const b = await budget();
     await cash(b, 1_000_000, { kind: "advance" });
     expect((await budgets.listBudgets(s.core.DB))[0].has_advance).toBe(true);
-    await expect(ask(b, 500_000, "advance")).rejects.toThrow(/ya fue pedido/);
+    await expect(ask(b, 500_000, "advance")).rejects.toThrow(/ya tiene un anticipo/);
   });
 
   it("un pago en efectivo no puede superar lo que falta cobrar", async () => {
@@ -194,15 +195,19 @@ describe("reglas del presupuesto (las valida la app antes de pedirle nada al ser
     expect((await payments.publicView(s.core.DB, r.public_id)).checkout_url).toBeNull();
   });
 
-  it("el efectivo que paga un link lo cierra, y no se asocia a un cobro de otro presupuesto", async () => {
+  it("con un link de Mercado Pago pendiente no se carga efectivo a mano: hay que pasarlo a efectivo o transferencia", async () => {
     const b = await budget();
     const other = await budget(5_000_000, "Luis");
     const r = await ask(b, 3_000_000, "advance");
     await expect(cash(other, 3_000_000, { request_id: r.id })).rejects.toThrow(/otro presupuesto/);
-    await cash(b, 3_000_000, { request_id: r.id, kind: "advance" });
-    const d = await payments.getRequestDetail(s.core.DB, r.id);
-    expect(d.status).toBe("paid");
-    expect((await payments.publicView(s.core.DB, r.public_id)).checkout_url).toBeNull();
+    await expect(cash(b, 3_000_000, { request_id: r.id, kind: "advance" })).rejects.toMatchObject({ code: "collects_online" });
+    await expect(cash(b, 1_000_000)).rejects.toMatchObject({ code: "collects_online" });
+    expect((await detail(b)).collects_online).toBe(true);
+    await payments.switchBudgetToManual(s.core, b); // se cierra el link y recién ahí se puede cobrar a mano
+    expect((await payments.getRequestDetail(s.core.DB, r.id)).status).toBe("cancelled");
+    expect((await detail(b)).collects_online).toBe(false);
+    await cash(b, 3_000_000);
+    expect((await detail(b)).applied_cents).toBe(3_000_000);
   });
 
   it("repetir el pedido de un pago en efectivo (doble clic) no lo duplica", async () => {

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { CheckCircle2, FileText, Landmark, Palette, Phone, Settings as SettingsIcon, Upload, type LucideIcon } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Banknote, CheckCircle2, FileText, Landmark, Palette, Phone, Settings as SettingsIcon, Upload, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ColorField } from "@/components/ui/color-field";
-import { NumberField } from "@/components/ui/number-field";
 import { Card } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
 import { Field } from "@/components/shared/Field";
@@ -17,21 +16,21 @@ import { Loading } from "@/components/feedback/ErrorMessage";
 import { useSettings } from "@/app/providers";
 import { setToken } from "@/lib/api";
 import type { Settings } from "@/types";
-import { TreatmentCatalogCard } from "../components/TreatmentCatalogCard";
-import { mpConnectUrl, mpDisconnect, saveSettings, type ProfileInput } from "../services/settings.service";
+import { ServicesManager } from "../components/ServicesManager";
+import { mpConnectUrl, mpDisconnect, removeLogo, saveSettings, uploadLogo, type ProfileInput } from "../services/settings.service";
 
 const MAX_LOGO = 200 * 1024;
 
 const profileOf = (s: Settings): ProfileInput => {
-  const { payments_online: _o, mp_connected: _c, mp_mock: _m, ...profile } = s;
+  const { payments_online: _o, mp_connected: _c, mp_mock: _m, logo_url: _l, ...profile } = s;
   return profile;
 };
 
 export function SettingsPage() {
   const { settings, reload } = useSettings();
   const [params, setParams] = useSearchParams();
-  const navigate = useNavigate();
   const [form, setForm] = useState<ProfileInput | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false); // subiendo o quitando el logo
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -58,12 +57,20 @@ export function SettingsPage() {
   if (!settings || !form) return <Loading />;
   const set = <K extends keyof ProfileInput>(k: K, v: ProfileInput[K]) => setForm({ ...form, [k]: v });
 
-  const onLogo = (file?: File) => {
+  // El logo es un archivo: se sube y se quita al instante, aparte de "Guardar cambios".
+  const onLogo = async (file?: File) => {
     if (!file) return;
     if (file.size > MAX_LOGO) return setMsg({ ok: false, text: "El logo es muy pesado. Usá una imagen de menos de 200 KB." });
-    const reader = new FileReader();
-    reader.onload = () => set("logo_data_url", String(reader.result));
-    reader.readAsDataURL(file);
+    setLogoBusy(true);
+    try { await uploadLogo(file); await reload(); setMsg({ ok: true, text: "Logo actualizado." }); }
+    catch (err) { setMsg({ ok: false, text: err instanceof Error ? err.message : "No pudimos subir el logo." }); }
+    finally { setLogoBusy(false); }
+  };
+  const dropLogo = async () => {
+    setLogoBusy(true);
+    try { await removeLogo(); await reload(); setMsg({ ok: true, text: "Logo quitado." }); }
+    catch (err) { setMsg({ ok: false, text: err instanceof Error ? err.message : "No pudimos quitar el logo." }); }
+    finally { setLogoBusy(false); }
   };
 
   const discard = () => setForm(profileOf(settings));
@@ -73,7 +80,8 @@ export function SettingsPage() {
     try {
       await saveSettings(form);
       await reload();
-      navigate("/", { state: { notice: "Cambios guardados." } }); // al guardar se vuelve al inicio
+      setMsg({ ok: true, text: "Cambios guardados." }); // se queda en Configuración para ver lo guardado
+      window.scrollTo(0, 0);
     } catch (err) { setMsg({ ok: false, text: err instanceof Error ? err.message : "No pudimos guardar." }); } finally { setBusy(false); }
   };
 
@@ -85,7 +93,7 @@ export function SettingsPage() {
   const mpWord = !settings.payments_online ? "Sin conexión" : settings.mp_mock ? "Modo piloto" : settings.mp_connected ? "Conectado" : "Sin conectar";
 
   return (
-    <div className={`mx-auto max-w-2xl ${dirty ? "pb-24" : ""}`}>
+    <div className={`mx-auto max-w-2xl lg:max-w-5xl ${dirty ? "pb-24" : ""}`}>
       <BackLink to="/">inicio</BackLink>
       <PageHeader title="Configuración" icon={SettingsIcon} />
       {msg && <p role="status" className={`mb-4 rounded-lg px-4 py-3 text-sm ${msg.ok ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}>{msg.text}</p>}
@@ -94,18 +102,20 @@ export function SettingsPage() {
       <section className="space-y-5 rounded-3xl border bg-white p-5 sm:p-6">
         <Field label="Nombre de tu negocio"><Input value={form.name} onChange={(e) => set("name", e.target.value)} /></Field>
         <div className="flex flex-wrap items-center gap-4">
-                <div className="h-16 w-16 rounded-lg border grid place-items-center bg-soft overflow-hidden">{form.logo_data_url ? <img src={form.logo_data_url} alt="Logo" className="max-h-full max-w-full object-contain" /> : <span className="text-xs text-muted">Sin logo</span>}</div>
+                <div className="h-16 w-16 rounded-lg border grid place-items-center bg-soft overflow-hidden">{settings.logo_url ? <img src={settings.logo_url} alt="Logo" className="max-h-full max-w-full object-contain" /> : <span className="text-xs text-muted">Sin logo</span>}</div>
                 <div className="space-y-2 min-w-0 max-w-full">
-                  <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { onLogo(e.target.files?.[0]); e.target.value = ""; }} />
-                  <Button type="button" variant="secondary" size="sm" onClick={() => fileRef.current?.click()}><Upload size={14} />{form.logo_data_url ? "Cambiar logo" : "Subir logo"}</Button>
+                  <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { void onLogo(e.target.files?.[0]); e.target.value = ""; }} />
+                  <Button type="button" variant="secondary" size="sm" disabled={logoBusy} onClick={() => fileRef.current?.click()}><Upload size={14} />{settings.logo_url ? "Cambiar logo" : "Subir logo"}</Button>
                   <p className="text-xs text-muted">PNG, JPG, SVG o WebP · hasta 200 KB</p>
-                  {form.logo_data_url && <Button type="button" size="sm" variant="ghost" onClick={() => set("logo_data_url", null)}>Quitar logo</Button>}
+                  {settings.logo_url && <Button type="button" size="sm" variant="ghost" disabled={logoBusy} onClick={() => void dropLogo()}>Quitar logo</Button>}
                 </div>
         </div>
       </section>
 
+      <p className="mt-4 px-1 text-center text-xs text-muted lg:hidden">Para más opciones de configuración, usalo desde la computadora.</p>
+
       <div className="mt-4 space-y-3">
-        <Group icon={Landmark} title="Mercado Pago" hint={mpWord} open={openGroup === "mercadopago"}>
+        <Group className="hidden lg:block" icon={Landmark} title="Mercado Pago" hint={mpWord} open={openGroup === "mercadopago"}>
           <div className="space-y-4">
             <Card className="p-5 space-y-3">
               <h2 className="text-base font-semibold">Mercado Pago</h2>
@@ -120,7 +130,7 @@ export function SettingsPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-muted">Conectá tu cuenta para que los clientes puedan pagar con un link. Vas a autorizar la app desde Mercado Pago; nosotros nunca vemos tu contraseña.</p>
+                  <p className="text-sm text-muted">Conectá tu cuenta para que tus destinatarios puedan pagar con un link. Vas a autorizar la app desde Mercado Pago; nosotros nunca vemos tu contraseña.</p>
                   <Button onClick={connect}>Conectar Mercado Pago</Button>
                 </>
               )}
@@ -164,18 +174,28 @@ export function SettingsPage() {
           </div>
         </Group>
 
-        <Group icon={FileText} title="Presupuestos" hint="Condiciones, vigencia y servicios" open={openGroup === "presupuestos"}>
-          <div className="space-y-5">
-            <Field label="Condiciones" hint="Aparecen en cada presupuesto nuevo."><Textarea value={form.terms} onChange={(e) => set("terms", e.target.value)} /></Field>
-            <Field plain label="Vigencia por defecto (días)"><NumberField ariaLabel="Vigencia por defecto en días" min={1} max={365} value={form.default_validity_days} onChange={(n) => set("default_validity_days", n)} className="max-w-44" /></Field>
-            <TreatmentCatalogCard />
+        <Group className="hidden lg:block" icon={Banknote} title="Datos para transferencia" hint={form.bank_cbu || form.bank_alias ? "Cargados" : "Sin cargar"} open={openGroup === "transferencia"}>
+          <div className="space-y-4">
+            <p className="text-sm text-muted">Van en el mensaje de WhatsApp cuando elegís cobrar por transferencia.</p>
+            <Field label="Titular de la cuenta"><Input value={form.bank_holder} onChange={(e) => set("bank_holder", e.target.value)} /></Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="CBU o CVU" hint="22 números"><Input inputMode="numeric" value={form.bank_cbu} onChange={(e) => set("bank_cbu", e.target.value)} /></Field>
+              <Field label="Alias"><Input value={form.bank_alias} onChange={(e) => set("bank_alias", e.target.value)} /></Field>
+            </div>
           </div>
         </Group>
 
-        <Group icon={Palette} title="Apariencia y avanzado" hint="Color y zona horaria" open={openGroup === "avanzado"}>
+        <Group className="hidden lg:block" icon={FileText} title="Presupuestos" hint="Condiciones y servicios" open={openGroup === "presupuestos"}>
+          <div className="space-y-5">
+            <Field label="Condiciones de tus presupuestos" hint="Es el texto que sale en cada presupuesto nuevo. Podés cambiarlo en cada uno."><Textarea className="min-h-28" placeholder="Ej.: Los valores pueden variar según lo que se acuerde. Se abona un anticipo para reservar. No incluye lo que no esté detallado." value={form.terms} onChange={(e) => set("terms", e.target.value)} /></Field>
+            <ServicesManager />
+          </div>
+        </Group>
+
+        <Group icon={Palette} title="Apariencia y avanzado" hint={<><span className="lg:hidden">Color</span><span className="hidden lg:inline">Color y zona horaria</span></>} open={openGroup === "avanzado"}>
           <div className="space-y-5">
             <Field plain label="Color" hint="Títulos y líneas de tus presupuestos."><ColorField label="Color" value={form.primary_color} onChange={(v) => { set("primary_color", v); setForm((f) => (f ? { ...f, primary_color: v, accent_color: lighten(v, 0.45) } : f)); }} /></Field>
-            <Field plain label="Zona horaria" hint="Define qué día es «hoy» y el cierre de cada día en los reportes.">
+            <Field plain label="Zona horaria" className="hidden lg:block" hint="Define qué día es «hoy» y el cierre de cada día en los reportes.">
               <Dropdown searchable={false} ariaLabel="Zona horaria" placeholder="Elegí tu zona horaria" value={form.time_zone} onChange={(v) => set("time_zone", v)} options={TIME_ZONES.some((z) => z.value === form.time_zone) ? TIME_ZONES : [...TIME_ZONES, { value: form.time_zone, label: form.time_zone }]} />
             </Field>
           </div>
@@ -198,9 +218,9 @@ export function SettingsPage() {
 }
 
 /** Un grupo plegado: título, una línea que dice cómo está, y su contenido al abrirlo. */
-function Group({ icon: Icon, title, hint, open, children }: { icon: LucideIcon; title: string; hint: string; open: boolean; children: React.ReactNode }) {
+function Group({ icon: Icon, title, hint, open, children, className }: { icon: LucideIcon; title: string; hint: React.ReactNode; open: boolean; children: React.ReactNode; className?: string }) {
   return (
-    <details open={open} className="group rounded-3xl border bg-white px-5 py-4 sm:px-6">
+    <details open={open} className={`group rounded-3xl border bg-white px-5 py-4 sm:px-6 ${className ?? ""}`}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
         <span className="flex items-center gap-3.5"><span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Icon size={19} /></span><span><span className="block font-semibold">{title}</span><span className="block text-sm text-muted">{hint}</span></span></span>
         <span aria-hidden className="text-muted transition group-open:rotate-90">›</span>

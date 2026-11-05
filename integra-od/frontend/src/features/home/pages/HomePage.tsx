@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, CircleAlert, FilePlus2, Hammer, Hourglass, MessageCircle, Wallet, type LucideIcon } from "lucide-react";
+import { ChevronRight, CircleAlert, FilePlus2, Hammer, Hourglass, MessageCircle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Amount } from "@/components/shared/Amount";
 import { useFlowScreen } from "@/components/layout/FlowScreen";
@@ -17,7 +17,7 @@ function greeting(): string {
 }
 
 /**
- * Inicio: tres cosas. Empezar un presupuesto, ver en qué están tus presupuestos y saber cuánta plata recibiste y cuánta falta.
+ * Inicio: lo de hoy. Empezar un presupuesto, ver en qué están tus presupuestos y cuánta plata falta cobrar. Lo cobrado y las comparaciones van en Métricas.
  * Los importes vienen del servidor (cobrado confirmado y saldo real de los presupuestos); acá solo se cuentan estados.
  */
 export function HomePage() {
@@ -53,12 +53,11 @@ export function HomePage() {
   const retry = () => { void summary.reload(); void budgets.reload(); };
   const groups = budgets.data ? groupWorks(budgets.data) : null;
   const noJobs = budgets.data?.length === 0;
-  const recibido = summary.data ? formatMoney(summary.data.collected_cents) : "—";
   const porCobrar = summary.data ? formatMoney(summary.data.budgets_balance_cents) : "—";
 
   return (
-    <div ref={root} className="home mx-auto w-full max-w-3xl space-y-3 [@media(max-height:620px)]:space-y-2 pb-1 sm:space-y-6">
-      <div className="home-greeting pt-0 sm:pt-4 [@media(max-height:620px)]:hidden sm:[@media(max-height:620px)]:block">
+    <div ref={root} className="home mx-auto flex w-full max-w-3xl flex-1 flex-col desk:my-auto desk:max-w-5xl desk:flex-none space-y-3 [@media(max-height:620px)]:space-y-2 pb-1 sm:space-y-6">
+      <div className="home-greeting px-1 pt-3 sm:px-0 sm:pt-4 [@media(max-height:620px)]:hidden sm:[@media(max-height:620px)]:block">
         <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{greeting()} <span aria-hidden>👋</span></h1>
               </div>
 
@@ -76,8 +75,8 @@ export function HomePage() {
 
       {failed && <p role="alert" className="text-sm text-danger">No pudimos cargar tus números. <button type="button" onClick={retry} className="cursor-pointer font-medium underline">Reintentar</button></p>}
 
-      <div className="space-y-3 [@media(max-height:620px)]:space-y-2 sm:space-y-6 desk:flex desk:flex-col desk:gap-4 desk:space-y-0">
-        <section aria-label="Tus presupuestos" className="flex flex-col rounded-3xl border bg-white p-3.5 sm:p-5">
+      <div className="home-stack flex min-h-0 flex-1 flex-col gap-3 [@media(max-height:620px)]:gap-2 sm:gap-6 desk:grid desk:flex-none desk:grid-cols-[minmax(0,1fr)_minmax(0,1.7fr)] desk:items-stretch desk:gap-5">
+        <section aria-label="Tus presupuestos" className="flex flex-1 flex-col rounded-3xl border bg-white p-3.5 sm:p-5 desk:p-6">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-base font-semibold sm:text-lg">Tus presupuestos</h2>
             {!noJobs && <Link to="/presupuestos" className="shrink-0 py-0.5 text-sm font-semibold text-secondary hover:underline sm:text-[15px]">Ver todos ›</Link>}
@@ -85,7 +84,7 @@ export function HomePage() {
           {noJobs ? (
             <p className="mt-4 flex-1 text-[15px] leading-relaxed text-muted">Todavía no tenés presupuestos. Tocá <strong className="text-foreground">Nuevo presupuesto</strong> para armar el primero.</p>
           ) : (
-            <dl className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
+            <dl className="mt-3 grid flex-1 grid-cols-2 grid-rows-2 gap-2 sm:gap-3 desk:mt-4 desk:grid-rows-[repeat(2,minmax(8.5rem,1fr))]">
               <Indicator to="/presupuestos?grupo=esperando-pago" label="Por pagar" value={groups?.awaitingPayment.length} icon={Hourglass} tone="warning" />
               <Indicator to="/presupuestos?grupo=en-curso" label="En curso" value={groups?.inProgress.length} icon={Hammer} tone="success" />
               <Indicator to="/presupuestos?grupo=por-responder" label="En espera" value={groups?.toAnswer.length} icon={MessageCircle} tone="neutral" />
@@ -94,10 +93,12 @@ export function HomePage() {
           )}
         </section>
 
-        <section aria-label="Tu dinero" className="desk:-order-1 flex flex-col rounded-3xl border bg-white p-3.5 sm:p-5">
-          <h2 className="home-money-title text-base font-semibold sm:text-lg">Tu dinero</h2>
-          <dl className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 ">
-            <Money label="Recibido" note="Este mes" icon={Wallet} tone="success" value={recibido} />
+        <section aria-label="Tu dinero" className="desk:-order-1 flex shrink-0 flex-col rounded-3xl border bg-white p-3.5 sm:p-5 desk:p-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="home-money-title text-base font-semibold sm:text-lg">Tu dinero</h2>
+            <Link to="/presupuestos?grupo=en-curso" className="shrink-0 py-0.5 text-sm font-semibold text-secondary hover:underline sm:text-[15px]">Ver ›</Link>
+          </div>
+          <dl className="mt-3 desk:mt-4 desk:flex desk:flex-1 desk:[&>*]:flex-1">
             <Money label="Por cobrar" note="Hoy" icon={Hourglass} tone="warning" value={porCobrar} />
           </dl>
         </section>
@@ -116,7 +117,7 @@ const TONE = {
 /** Un número con su ícono y lo que cuenta; al tocarlo se abre ese grupo de presupuestos. */
 function Indicator({ to, label, value, icon: Icon, tone }: { to: string; label: string; value?: number; icon: LucideIcon; tone: keyof typeof TONE }) {
   return (
-    <Link to={to} className={cn("home-ind flex min-w-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 [@media(max-height:620px)]:py-1.5 transition hover:brightness-[0.97] sm:flex-col sm:gap-1.5 sm:px-3 sm:py-3 sm:text-center", TONE[tone].tile)}>
+    <Link to={to} className={cn("home-ind flex min-w-0 items-center justify-center gap-2.5 rounded-2xl px-3 py-2.5 [@media(max-height:620px)]:py-1.5 transition hover:brightness-[0.97] sm:flex-col sm:gap-1.5 sm:px-3 sm:py-3 sm:text-center", TONE[tone].tile)}>
       <dd className="order-2 text-[26px] font-semibold leading-none tracking-tight tabular sm:text-[30px]">{value ?? "—"}</dd>
       <span aria-hidden className={cn("order-1 grid h-8 w-8 shrink-0 place-items-center rounded-full", TONE[tone].chip)}><Icon size={16} /></span>
       <dt className="order-3 min-w-0 text-balance text-[12.5px] leading-tight text-muted">{label}</dt>
@@ -126,7 +127,7 @@ function Indicator({ to, label, value, icon: Icon, tone }: { to: string; label: 
 
 function Money({ label, note, value, icon: Icon, tone }: { label: string; note: string; value: string; icon: LucideIcon; tone: keyof typeof TONE }) {
   return (
-    <div className={cn("home-money flex min-w-0 flex-col items-center gap-1.5 rounded-2xl p-3 text-center sm:gap-2 sm:p-4", TONE[tone].tile)}>
+    <div className={cn("home-money flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-2xl p-3 text-center sm:gap-2 sm:p-4 desk:gap-4", TONE[tone].tile)}>
       <div className="flex items-center justify-center gap-2">
         <span aria-hidden className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full", TONE[tone].chip)}><Icon size={17} /></span>
         <div className="min-w-0 text-left leading-tight">
@@ -134,7 +135,7 @@ function Money({ label, note, value, icon: Icon, tone }: { label: string; note: 
           <span className="block text-[11px] text-muted sm:text-xs">{note}</span>
         </div>
       </div>
-      <dd className="flex w-full justify-center"><Amount value={value} mobile={22} desktop={30} /></dd>
+      <dd className="flex w-full justify-center"><Amount value={value} mobile={22} desktop={40} /></dd>
     </div>
   );
 }

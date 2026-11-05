@@ -23,13 +23,13 @@ export function PatientDetailPage() {
   const [editing, setEditing] = useState(false);
 
   if (loading && !p) return <Loading />;
-  if (error || !p) return <ErrorMessage message={error ?? "No encontramos a ese cliente."} onRetry={reload} />;
+  if (error || !p) return <ErrorMessage message={error ?? "No encontramos a ese destinatario."} onRetry={reload} />;
   const owes = p.totals.balance_cents;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       <div>
-        <BackLink to="/clientes">clientes</BackLink>
+        <BackLink to="/clientes">destinatarios</BackLink>
         <div className="flex items-center gap-3.5">
           <Avatar name={p.name} size="lg" />
           <div className="min-w-0">

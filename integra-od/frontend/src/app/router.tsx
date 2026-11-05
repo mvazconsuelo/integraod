@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AuthGate, SettingsProvider } from "@/app/providers";
 import { AppShell } from "@/components/layout/AppShell";
 import { HomePage } from "@/features/home/pages/HomePage";
-import { ActivityPage } from "@/features/activity/pages/ActivityPage";
 import { ControlPage } from "@/features/dashboard/pages/ControlPage";
 import { BudgetsPage } from "@/features/budgets/pages/BudgetsPage";
 import { BudgetDetailPage } from "@/features/budgets/pages/BudgetDetailPage";
@@ -30,7 +29,7 @@ export const router = createBrowserRouter([
     element: <Private />,
     children: [
       { index: true, element: <HomePage /> },
-      { path: "actividad", element: <ActivityPage /> },
+      { path: "actividad", element: <Navigate to="/control?vista=historial" replace /> }, // el historial vive en Métricas
       { path: "control", element: <ControlPage /> },
       { path: "presupuestos", element: <BudgetsPage /> },
       { path: "presupuestos/nuevo", element: <NewBudgetFlow /> },

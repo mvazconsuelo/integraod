@@ -1,0 +1,49 @@
+# IntegraOD + Cloudflare Tunnel.
+#   1) cp .env.example .env   y completá ADMIN_TOKEN, PUBLIC_URL y TUNNEL_TOKEN
+#   2) docker compose up -d --build
+# La app NO publica puertos: solo el túnel llega a ella. Guía completa: docs/docker-cloudflare.md
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Falta ADMIN_TOKEN en .env}
+      PUBLIC_URL: ${PUBLIC_URL:?Falta PUBLIC_URL en .env}
+      MP_MOCK: ${MP_MOCK:-true}
+    volumes:
+      - integraod-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8787/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    # Para probar en esta máquina sin túnel, descomentá:
+    # ports:
+    #   - "127.0.0.1:8787:8787"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Falta TUNNEL_TOKEN en .env}
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # Carga en el Docker los datos de tu entorno local (.dev-state): bases, logo, presupuestos de ejemplo y pagos simulados.
+  # Reemplaza lo que haya en el Docker. Se usa con:  npm run docker:datos
+  seed:
+    image: alpine:3
+    profiles: ["seed"]
+    volumes:
+      - integraod-data:/data
+      - ./.dev-state:/local:ro
+    command:
+      - sh
+      - -c
+      - "test -d /local/v3 || { echo 'No encuentro .dev-state/v3: corré primero la app en local.'; exit 1; }; mkdir -p /data/state && rm -rf /data/state/v3 && cp -a /local/v3 /data/state/v3 && chown -R 1000:1000 /data && echo 'Datos locales cargados en el Docker.'"
+
+volumes:
+  integraod-data:

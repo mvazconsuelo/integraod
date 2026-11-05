@@ -30,18 +30,34 @@ export function useVisualViewport() {
       root.style.setProperty("--kb", `${Math.round(kb)}px`);
       const open = typing && kb > 120;
       root.classList.toggle("kb-open", open);
+      if (root.classList.contains("flow-screen") && (window.scrollY !== 0 || window.scrollX !== 0)) window.scrollTo(0, 0); // una pantalla fija nunca queda scrolleada
       root.style.setProperty("--kb-extra", `${open && IOS ? IOS_KEYBOARD_STRIP : 0}px`);
+    };
+    // Páginas que scrollean normal (Configuración, Clientes, edición...): el campo que se escribe no puede quedar detrás del teclado.
+    // (Las pantallas de ventana fija —.flow-screen— ya lo resuelven dentro de su región.)
+    let keepTimer: ReturnType<typeof setTimeout>;
+    const keepVisible = () => {
+      clearTimeout(keepTimer);
+      keepTimer = setTimeout(() => {
+        const el = document.activeElement;
+        if (root.classList.contains("flow-screen") || !isEditable(el)) return;
+        const strip = parseFloat(root.style.getPropertyValue("--kb-extra")) || 0;
+        const top = (vv?.offsetTop ?? 0) + 8;
+        const bottom = (vv ? vv.offsetTop + vv.height : window.innerHeight) - strip - 8;
+        const r = el.getBoundingClientRect();
+        if (r.top < top || r.bottom > bottom) el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }, 250);
     };
     const later = () => { clearTimeout(timer); timer = setTimeout(update, 120); }; // al soltar el foco el teclado tarda en bajar
     update();
-    vv?.addEventListener("resize", update); vv?.addEventListener("scroll", update);
+    vv?.addEventListener("resize", update); vv?.addEventListener("scroll", update); vv?.addEventListener("resize", keepVisible);
     window.addEventListener("resize", update); window.addEventListener("orientationchange", later);
-    document.addEventListener("focusin", update); document.addEventListener("focusout", later);
+    document.addEventListener("focusin", update); document.addEventListener("focusin", keepVisible); document.addEventListener("focusout", later);
     return () => {
-      clearTimeout(timer);
-      vv?.removeEventListener("resize", update); vv?.removeEventListener("scroll", update);
+      clearTimeout(timer); clearTimeout(keepTimer);
+      vv?.removeEventListener("resize", keepVisible); vv?.removeEventListener("resize", update); vv?.removeEventListener("scroll", update);
       window.removeEventListener("resize", update); window.removeEventListener("orientationchange", later);
-      document.removeEventListener("focusin", update); document.removeEventListener("focusout", later);
+      document.removeEventListener("focusin", update); document.removeEventListener("focusin", keepVisible); document.removeEventListener("focusout", later);
       root.classList.remove("kb-open"); root.style.removeProperty("--vvh"); root.style.removeProperty("--vvtop"); root.style.removeProperty("--kb"); root.style.removeProperty("--kb-extra");
     };
   }, []);

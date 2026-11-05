@@ -2,32 +2,29 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ActionMenu, type MenuAction } from "@/components/ui/action-menu";
+import { WhatsAppIcon } from "@/components/ui/whatsapp-icon";
 import { BackLink } from "@/components/shared/BackLink";
 import { Amount } from "@/components/shared/Amount";
 import { Avatar } from "@/components/shared/Avatar";
+import { ActionBar, FlowScreen } from "@/components/layout/FlowScreen";
 import { PaidBar } from "@/components/shared/PaidBar";
 import { Section } from "@/components/shared/Section";
 import { cn } from "@/lib/utils";
-import { CircleCheck, Hourglass, ListChecks, Wallet } from "lucide-react";
+import { Banknote, CircleCheck, Hourglass, ListChecks, Send, Wallet } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ErrorMessage, Loading } from "@/components/feedback/ErrorMessage";
-import { ApplyPaymentDialog } from "@/features/payments/components/ApplyPaymentDialog";
 import { RegisterPaymentDialog } from "@/features/payments/components/RegisterPaymentDialog";
 import { RequestPayDialog } from "@/features/payments/components/RequestPayDialog";
 import { VoidDialog } from "@/features/payments/components/VoidDialog";
-import { cancelRequest, publicLink } from "@/features/payments/services/payments.service";
 import { useSettings } from "@/app/providers";
 import { useApi } from "@/hooks/useApi";
-import { useCopy } from "@/hooks/useCopy";
 import { useNotice } from "@/hooks/useNotice";
 import { patientPath } from "@/lib/patients";
 import { formatMoney } from "@/lib/currency";
-import { KIND_LABEL, methodLabel, formatDate, today } from "@/lib/formatters";
-import { printAs } from "@/lib/print";
-import type { BudgetDetail, BudgetStatus, PaymentRequest } from "@/types";
-import { BudgetSheet } from "../components/BudgetSheet";
+import { KIND_LABEL, methodLabel, formatDate, formatDateNumeric, today } from "@/lib/formatters";
+import type { BudgetDetail, BudgetStatus, PaymentRequest, Received } from "@/types";
+import { budgetPdf, deliverPdf } from "@/lib/budget-pdf";
 import { BudgetCancelFlow, type CancelMode } from "../components/BudgetStatusPanel";
-import { BudgetTimeline } from "../components/BudgetTimeline";
 import { ShareBudgetDialog } from "../components/ShareBudgetDialog";
 import { changeStatus, recordAnswer } from "../services/budgets.service";
 import { workOf } from "./BudgetsPage";
@@ -46,7 +43,6 @@ export function BudgetDetailPage() {
   const [sharing, setSharing] = useState(params.get("compartir") === "1");
   const [registering, setRegistering] = useState<{ requestId?: string } | null>(params.get("pagar") === "1" ? {} : null);
   const [requesting, setRequesting] = useState<PaymentRequest | "new" | null>(null);
-  const [applying, setApplying] = useState(false);
   const [voiding, setVoiding] = useState<string | null>(null);
   const [cancelMode, setCancelMode] = useState<CancelMode>(null);
   const [actionError, setActionError] = useState("");
@@ -57,7 +53,10 @@ export function BudgetDetailPage() {
   const setStatus = async (status: BudgetStatus) => {
     try { await changeStatus(id, status); setActionError(""); await reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "No pudimos cambiar el estado."); }
   };
-  const download = () => b && printAs(`Presupuesto N° ${String(b.number).padStart(4, "0")} - ${b.patient_ref}`);
+  const download = async () => {
+    if (!b || !settings) return;
+    try { setActionError(""); await deliverPdf(await budgetPdf(b, settings)); } catch { setActionError("No pudimos generar el PDF. Probá de nuevo."); }
+  };
 
   if (loading && !b) return <Loading />;
   if (error || !b) return <ErrorMessage message={error ?? "No encontramos el presupuesto."} onRetry={reload} />;
@@ -71,59 +70,104 @@ export function BudgetDetailPage() {
   const canRequest = canCollect && b.requestable_cents > 0;
   const waiting = b.requests.filter((r) => r.display_status === "pending" || r.display_status === "partially_paid" || r.display_status === "expired");
   const fixedBudget = { id: b.id, patient_ref: b.patient_ref, total_cents: b.total_cents, applied_cents: b.applied_cents, balance_cents: b.balance_cents, requestable_cents: b.requestable_cents, first_item: b.first_item, item_count: b.item_count };
-  const detailed = b.items.length > 1 || b.items.some((i) => i.quantity > 1 || i.discount_pct > 0);
+  const detailed = b.items.length > 1 || b.items.some((i) => i.quantity > 1 || i.discount_pct > 0 || i.detail);
 
-  // Una sola acción principal, según el estado.
-  const primary = cancelled || done ? null
-    : active.length === 0 && waiting.length === 0 ? { label: "Compartir", run: () => setSharing(true) }
-    : { label: "Registrar pago", run: () => setRegistering({}) };
+  // Cobros por Mercado Pago esperando que el cliente pague: ese pago llega solo, no hay que cargarlo a mano.
+  const awaitingOnline = waiting.filter((r) => r.provider !== "cash" && (r.display_status === "pending" || r.display_status === "partially_paid"));
+  const awaitingCents = awaitingOnline.reduce((s, r) => s + r.pending_cents, 0);
+  const awaitingPaid = awaitingOnline.reduce((s, r) => s + r.paid_cents, 0); // lo que ya se pagó de esos pedidos
+  // Se cobra por Mercado Pago y no hay ningún link esperando (por ejemplo, ya se pagó el anticipo): el link anterior no se comparte de nuevo,
+  // lo que sigue es un pago nuevo, con su propio link.
+  const viaMp = b.collect_method === "mercadopago" || b.requests.some((r) => r.provider !== "cash");
+  const newPayment = viaMp && canRequest && awaitingOnline.length === 0;
+  const movements = b.applications; // en orden de fecha; los anulados quedan a la vista
 
   const answer = async (a: "accepted" | "declined") => { try { await recordAnswer(id, a); setActionError(""); await reload(); } catch (e) { setActionError(e instanceof Error ? e.message : "No pudimos guardar la respuesta."); } };
-  const canAnswer = !cancelled && !done;
+  // Aceptó / rechazó solo tiene sentido mientras todavía no hay pagos ni pedido en curso (con eso, el cliente ya está avanzando).
+  const canAnswer = !cancelled && !done && b.applied_cents === 0 && waiting.length === 0;
   const menu: MenuAction[] = [
-    { label: "Compartir", onClick: () => setSharing(true), hidden: cancelled || primary?.label === "Compartir" },
-    { label: "Registrar pago", onClick: () => setRegistering({}), hidden: !canCollect || primary?.label === "Registrar pago" },
-    { label: "Pedir un pago", onClick: () => setRequesting("new"), hidden: !canRequest },
-    { label: "Usar un pago ya recibido", onClick: () => setApplying(true), hidden: !canCollect },
     { label: "Editar", onClick: () => navigate(`/presupuestos/${b.id}/editar`), hidden: cancelled },
-    { label: "El cliente aceptó", onClick: () => void answer("accepted"), hidden: !canAnswer || b.answer === "accepted" },
-    { label: "El cliente lo rechazó", onClick: () => void answer("declined"), hidden: !canAnswer || b.answer === "declined" },
+    { label: "Marcar como aceptado", onClick: () => void answer("accepted"), hidden: !canAnswer || b.answer === "accepted" },
+    { label: "Marcar como rechazado", onClick: () => void answer("declined"), hidden: !canAnswer || b.answer === "declined" },
     { label: "Descargar PDF", onClick: download },
     { label: "Reabrir presupuesto", onClick: () => void setStatus("sent"), hidden: !cancelled },
     { label: b.applied_cents > 0 ? "¿Por qué no puedo cancelarlo?" : "Cancelar presupuesto", tone: b.applied_cents > 0 ? undefined : "danger", onClick: () => setCancelMode(b.applied_cents > 0 ? "blocked" : "confirm"), hidden: cancelled || done },
   ];
 
+  // Las acciones de cobro, siempre a mano abajo (el resumen y las listas scrollean arriba).
+  const actionBar = canCollect ? (
+    <ActionBar className="py-2">
+      {awaitingOnline.length > 0 ? (
+        <div className="grid w-full grid-cols-2 gap-2">
+          <Button className="h-12 text-base" onClick={() => setSharing(true)}>Compartir<WhatsAppIcon size={18} /></Button>
+          <Button variant="secondary" className="h-12 text-base" onClick={() => navigate(`/presupuestos/${b.id}/editar`)}><Banknote size={18} aria-hidden />Pasar a efectivo</Button>
+        </div>
+      ) : (
+        <div className={cn("grid w-full gap-2", canRequest && !newPayment ? "grid-cols-2" : "grid-cols-1")}>
+          <Button className="h-12 text-base" onClick={() => setRegistering({})}><Banknote size={18} aria-hidden />Registrar pago</Button>
+          {canRequest && !newPayment && <Button variant="secondary" className="h-12 text-base" onClick={() => setRequesting("new")}><Send size={17} aria-hidden />Link de pago</Button>}
+        </div>
+      )}
+    </ActionBar>
+  ) : null;
+
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
+    <FlowScreen className="max-w-2xl" top={<div className="shrink-0 pb-3">
       <div>
         <BackLink to="/presupuestos">presupuestos</BackLink>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3.5">
-            <Avatar name={b.patient_ref} size="lg" />
+          <div className="flex min-w-0 items-start gap-3.5">
+            <Avatar name={b.patient_ref} size="md" className="mt-1" />
             <div className="min-w-0">
-              <h1 className="truncate text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{b.patient_ref}</h1>
-              <p className="truncate text-muted">{workOf(b)}</p>
-              <p className="mt-0.5 text-sm text-muted">N° {String(b.number).padStart(4, "0")} · {formatDate(b.issued_on)} · {b.valid_until && <span className={expiredBudget ? "font-medium text-danger" : undefined}>{expiredBudget ? "Venció" : "Vence"} el {formatDate(b.valid_until)} · </span>}<Link to={patientPath(b.patient_ref)} className="text-secondary hover:underline">ver cliente</Link></p>
+              {/* Los nombres largos se muestran completos (se parten en renglones y la letra se achica), nunca cortados con "…" */}
+              <h1 className={cn("font-semibold leading-tight tracking-tight [overflow-wrap:anywhere]", b.patient_ref.length > 40 ? "text-lg sm:text-2xl" : b.patient_ref.length > 24 ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl")}>{b.patient_ref}</h1>
+              {/* Con varios conceptos no se resume ("Limpieza y 2 más"): se listan abajo en "Conceptos". Con uno solo, es lo único que lo dice. */}
+              {b.item_count === 1 && <p className={cn("text-muted [overflow-wrap:anywhere]", workOf(b).length > 50 && "text-sm sm:text-base")}>{workOf(b)}</p>}
+              <Link to={patientPath(b.patient_ref)} className="mt-0.5 inline-block text-sm font-medium text-secondary hover:underline">Ver destinatario ›</Link>
             </div>
           </div>
           <ActionMenu actions={menu} />
         </div>
       </div>
-
+      </div>}
+      bar={actionBar}>
+      <div className="space-y-6 pb-2">
       {actionError && <ErrorMessage message={actionError} />}
 
-      {/* El dinero, en una mirada: el bloque con más color de la pantalla */}
-      <section aria-label="Dinero" className={cn("space-y-4 rounded-3xl p-5 sm:p-6", cancelled ? "bg-soft" : done ? "bg-success/10" : "bg-warning/10")}>
+      {/* Resumen: cuánto vale, cuánto se recibió y cuánto falta. Es lo más importante de la pantalla. */}
+      <section aria-label="Resumen de dinero" className={cn("space-y-4 rounded-3xl p-5 sm:p-6", cancelled ? "bg-soft" : done ? "bg-success/10" : "bg-warning/10")}>
         <div className="flex items-center justify-between gap-3">
           <p className="flex items-center gap-2.5 text-sm font-medium">
             <span aria-hidden className={cn("grid h-9 w-9 place-items-center rounded-full", cancelled ? "bg-white text-muted" : done ? "bg-success/15 text-success" : "bg-warning/20 text-[#8a5d2b]")}>{done ? <CircleCheck size={18} /> : <Hourglass size={18} />}</span>
-            {cancelled ? "Total" : done ? "Cobrado" : "Falta cobrar"}
+            {cancelled ? "Cancelado" : done ? "Cobrado" : "Falta cobrar"}
           </p>
-          <StatusBadge kind="budget" status={b.status} />
+          <StatusBadge kind="situation" status={b.situation} />
         </div>
-        <Amount value={formatMoney(cancelled || done ? b.total_cents : b.balance_cents)} mobile={42} desktop={56} />
-        {!cancelled && <PaidBar percent={b.paid_percent} label={`Cobrado ${formatMoney(b.applied_cents)} de ${formatMoney(b.total_cents)}`} />}
-        {primary && <Button className="h-12 w-full text-base" onClick={primary.run}>{primary.label}</Button>}
+        <p className="-mt-1 text-sm text-muted">
+          Presupuesto <strong className="font-semibold text-foreground">N° {String(b.number).padStart(4, "0")}</strong>
+          {b.valid_until && <span className={expiredBudget ? "font-medium text-danger" : undefined}> · {expiredBudget ? "Venció" : "Vence"} el {formatDateNumeric(b.valid_until)}</span>}
+        </p>
+        {!cancelled && !done && <Amount value={formatMoney(b.balance_cents)} mobile={42} desktop={56} />}
+        <dl className="grid grid-cols-2 gap-3 text-sm">
+          <div><dt className="text-muted">Presupuesto</dt><dd className="text-lg font-semibold tabular">{formatMoney(b.total_cents)}</dd></div>
+          <div><dt className="text-muted">Recibido</dt><dd className="text-lg font-semibold tabular text-success">{formatMoney(b.applied_cents)}</dd></div>
+        </dl>
+        {!cancelled && <PaidBar percent={b.paid_percent} label={`${b.paid_percent} % cobrado`} />}
+        {canCollect && (
+          <div className="space-y-3 pt-1">
+            {awaitingOnline.length > 0 && (
+              <p className="flex items-start gap-2 rounded-2xl bg-white/70 px-3.5 py-2.5 text-sm"><Hourglass size={16} aria-hidden className="mt-0.5 shrink-0 text-[#8a5d2b]" /><span><strong>{awaitingOnline.every((r) => r.kind === "advance") ? "Anticipo" : "Pago"} Mercado Pago</strong> · <strong className="tabular">{formatMoney(awaitingCents)}</strong>{awaitingPaid > 0 && <> Ya recibiste {formatMoney(awaitingPaid)}.</>}</span></p>
+            )}
+            {/* Un solo botón de compartir (solo WhatsApp). Con un pedido por Mercado Pago esperando, ese botón está en la barra de abajo. */}
+            {awaitingOnline.length === 0 && (newPayment
+              ? <Button variant="secondary" className="h-11 w-full" onClick={() => setRequesting("new")}><Send size={17} aria-hidden />Nuevo pago</Button>
+              : <Button variant="secondary" className="h-11 w-full" onClick={() => setSharing(true)}>Compartir<WhatsAppIcon size={18} /></Button>)}
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              {awaitingOnline.length > 0 && canRequest && <button type="button" className="cursor-pointer font-medium text-secondary hover:underline" onClick={() => setRequesting("new")}>Otro link de pago</button>}
+            </div>
+          </div>
+        )}
+        {!canCollect && !cancelled && <Button variant="secondary" className="h-11 w-full" onClick={() => setSharing(true)}>Compartir<WhatsAppIcon size={18} /></Button>}
       </section>
 
       {detailed && (
@@ -131,7 +175,7 @@ export function BudgetDetailPage() {
           <ul className="divide-y px-5 pb-2 text-sm sm:px-6">
             {b.items.map((i) => (
               <li key={i.id} className="flex items-start justify-between gap-3 py-2.5">
-                <div className="min-w-0"><p>{i.description}</p>{(i.quantity > 1 || i.discount_pct > 0) && <p className="text-xs text-muted">{i.quantity > 1 && `${i.quantity} × ${formatMoney(i.unit_price_cents)}`}{i.quantity > 1 && i.discount_pct > 0 && " · "}{i.discount_pct > 0 && `${i.discount_pct}% de descuento`}</p>}</div>
+                <div className="min-w-0"><p>{i.description}</p>{i.detail && <p className="whitespace-pre-line text-xs text-muted">{i.detail}</p>}{(i.quantity > 1 || i.discount_pct > 0) && <p className="text-xs text-muted">{i.quantity > 1 && `${i.quantity} × ${formatMoney(i.unit_price_cents)}`}{i.quantity > 1 && i.discount_pct > 0 && " · "}{i.discount_pct > 0 && `${i.discount_pct}% de descuento`}</p>}</div>
                 <span className="shrink-0 tabular">{formatMoney(i.total_cents)}</span>
               </li>
             ))}
@@ -139,55 +183,30 @@ export function BudgetDetailPage() {
         </Section>
       )}
 
-      {(waiting.length > 0 || active.length > 0) && (
-        <Section title="Pagos" icon={Wallet} flush className="scroll-mt-24">
+      {movements.length > 0 && (
+        <Section title="Dinero recibido" icon={Wallet} flush className="scroll-mt-24">
           <ul id="pagos" className="divide-y px-5 pb-2 sm:px-6">
-            {waiting.map((r) => <RequestRow key={r.id} r={r} onRegister={() => setRegistering({ requestId: r.id })} onAgain={() => setRequesting(r)} onDone={() => void reload()} />)}
-            {active.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                <div className="min-w-0"><p>{KIND_LABEL[a.kind]} · {methodLabel(a.method)}{a.provider === "mock" && <span className="text-muted"> · simulado</span>}</p><p className="text-xs text-muted">{formatDate(a.paid_at)}</p></div>
-                <div className="flex items-center gap-1"><span className="tabular font-medium text-success">{formatMoney(a.amount_cents)}</span><Button size="sm" variant="ghost" onClick={() => setVoiding(a.id)}>Anular</Button></div>
+            {movements.map((a) => (
+              <li key={a.id} className={cn("flex items-center justify-between gap-3 py-3 text-sm", a.voided_at && "opacity-60")}>
+                <div className="min-w-0">
+                  <p className={cn("font-medium", a.voided_at && "line-through")}>{KIND_LABEL[a.kind]} · {formatMoney(a.amount_cents)}</p>
+                  <p className="text-xs text-muted">{methodLabel(a.method)}{a.provider === "mock" && " (simulado)"} · {formatDate(a.paid_at)}{a.voided_at && ` · Anulado${a.void_reason ? `: ${a.void_reason}` : ""}`}</p>
+                </div>
+                {!a.voided_at && <Button size="sm" variant="ghost" onClick={() => setVoiding(a.id)}>Anular</Button>}
               </li>
             ))}
           </ul>
         </Section>
       )}
 
-      {b.notes && <details className="border-t pt-4 text-sm"><summary className="cursor-pointer font-medium text-muted hover:text-foreground">Condiciones</summary><p className="mt-2 whitespace-pre-line text-muted">{b.notes}</p></details>}
-      <BudgetTimeline events={b.timeline} />
 
-      {settings && <BudgetSheet budget={b} settings={settings} />}
-      {sharing && settings && <ShareBudgetDialog open onOpenChange={setSharing} budget={b} settings={settings} onDownload={download} onChanged={() => void reload()} />}
+      {sharing && settings && <ShareBudgetDialog open onOpenChange={setSharing} budget={b} settings={settings} onChanged={() => void reload()} />}
       {requesting && <RequestPayDialog open onOpenChange={() => setRequesting(null)} onCreated={() => void reload()} budget={requesting === "new" ? fixedBudget : undefined} budgetId={requesting === "new" ? undefined : b.id} initial={requesting === "new" ? undefined : { amount_cents: requesting.pending_cents, conditions: requesting.conditions }} />}
       {registering && <RegisterPaymentDialog open onOpenChange={() => setRegistering(null)} onSaved={(m) => { void reload(); notify(m); }} budgetId={b.id} requestId={registering.requestId} />}
-      {applying && <ApplyPaymentDialog open onOpenChange={setApplying} budgetId={b.id} balanceCents={b.balance_cents} onDone={reload} />}
       {voiding && <VoidDialog open onOpenChange={() => setVoiding(null)} title="Anular pago" path={`/payments/applications/${voiding}/void`} onDone={reload} />}
       <BudgetCancelFlow budget={b} mode={cancelMode} onClose={() => setCancelMode(null)} onChange={setStatus} />
-    </div>
+      </div>
+    </FlowScreen>
   );
 }
 
-/** Un pedido de pago que todavía no se cobró: qué es, su estado y lo que se puede hacer con él, a la vista (sin otro menú). */
-function RequestRow({ r, onAgain, onRegister, onDone }: { r: PaymentRequest; onAgain: () => void; onRegister: () => void; onDone: () => void }) {
-  const { state, copy } = useCopy();
-  const [error, setError] = useState("");
-  const expired = r.display_status === "expired";
-  const online = r.provider !== "cash";
-  const link = "cursor-pointer text-sm font-medium text-secondary hover:underline";
-  const cancel = async () => { try { await cancelRequest(r.id); onDone(); } catch (e) { setError(e instanceof Error ? e.message : "No pudimos cancelar el pedido."); } };
-  return (
-    <li className="py-3.5 text-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0"><p>{online ? "Pedido con link" : "Pedido en mano"} · {formatMoney(r.amount_cents)}</p><p className="text-xs text-muted">{formatDate(r.created_at)}{r.due_date && ` · vence el ${formatDate(r.due_date)}`}</p></div>
-        <StatusBadge status={r.display_status} />
-      </div>
-      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
-        {online && !expired && <button type="button" className={link} onClick={() => void copy(publicLink(r.public_id))}>{state === "copied" ? "Link copiado" : "Copiar link"}</button>}
-        {!online && <button type="button" className={link} onClick={onRegister}>Registrar pago</button>}
-        {expired && <button type="button" className={link} onClick={onAgain}>Pedir de nuevo</button>}
-        {r.paid_cents === 0 && <button type="button" className="cursor-pointer text-sm text-muted hover:text-danger hover:underline" onClick={() => void cancel()}>Cancelar pedido</button>}
-      </div>
-      {error && <p role="alert" className="mt-1 text-xs text-danger">{error}</p>}
-    </li>
-  );
-}

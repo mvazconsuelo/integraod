@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { LoginScreen } from "@/features/auth/LoginScreen";
 import { api, ApiError, getToken, setToken } from "@/lib/api";
+import { writeBrand } from "@/lib/brand-cache";
 import { setClinicTimeZone } from "@/lib/time-zone";
 import type { Settings } from "@/types";
 
@@ -10,7 +11,7 @@ export const useSettings = () => useContext(SettingsContext);
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const reload = useCallback(async () => {
-    try { const s = await api<Settings>("/settings"); setClinicTimeZone(s.time_zone); setSettings(s); } catch { /* el shell muestra el error si hace falta */ }
+    try { const s = await api<Settings>("/settings"); setClinicTimeZone(s.time_zone); writeBrand({ name: s.name, logo_url: s.logo_url }); setSettings(s); } catch { /* el shell muestra el error si hace falta */ }
   }, []);
   useEffect(() => { void reload(); }, [reload]);
   return <SettingsContext.Provider value={{ settings, reload }}>{children}</SettingsContext.Provider>;

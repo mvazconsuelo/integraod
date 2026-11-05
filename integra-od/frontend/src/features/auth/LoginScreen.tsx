@@ -1,9 +1,12 @@
+import { readBrand, writeBrand } from "@/lib/brand-cache";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, FileText, Info, Loader2, Lock, ShieldCheck, TriangleAlert, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { useFixedPage } from "@/hooks/useFixedPage";
+import { useVisualViewport } from "@/hooks/useVisualViewport";
 
-interface Brand { name: string; logo_data_url: string | null }
+interface Brand { name: string; logo_url: string | null }
 
 const POINTS = [
   { icon: FileText, title: "Presupuestos claros", text: "Creá y enviá presupuestos en pocos pasos." },
@@ -13,7 +16,19 @@ const POINTS = [
 
 /** Pantalla de ingreso. Muestra el nombre y el logo del negocio para que se reconozca que es el lugar correcto. */
 export function LoginScreen({ onSubmit }: { onSubmit: (key: string) => Promise<string | null> }) {
-  const [brand, setBrand] = useState<Brand | null>(null);
+  useFixedPage(); // sin scroll de documento; con el teclado abierto se achica lo accesorio
+  useVisualViewport();
+  // Con el teclado abierto el logo se achica; solo se esconde si ni así entra (pantallas muy bajas).
+  const [short, setShort] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const update = () => setShort((vv?.height ?? window.innerHeight) < 300);
+    update();
+    vv?.addEventListener("resize", update);
+    window.addEventListener("resize", update);
+    return () => { vv?.removeEventListener("resize", update); window.removeEventListener("resize", update); };
+  }, []);
+  const [brand, setBrand] = useState<Brand | null>(() => readBrand()); // lo último que se vio: sin parpadeo al recargar
   const [value, setValue] = useState("");
   const [visible, setVisible] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
@@ -23,7 +38,7 @@ export function LoginScreen({ onSubmit }: { onSubmit: (key: string) => Promise<s
 
   useEffect(() => {
     let alive = true;
-    api<Brand>("/public/brand", { auth: false }).then((b) => alive && setBrand(b)).catch(() => alive && setBrand({ name: "", logo_data_url: null }));
+    api<Brand>("/public/brand", { auth: false }).then((b) => { writeBrand(b); if (alive) setBrand(b); }).catch(() => alive && setBrand({ name: "", logo_url: null }));
     return () => { alive = false; };
   }, []);
   useEffect(() => { document.title = brand?.name ? `Ingresar · ${brand.name}` : "Ingresar"; }, [brand?.name]);
@@ -39,7 +54,7 @@ export function LoginScreen({ onSubmit }: { onSubmit: (key: string) => Promise<s
   };
 
   return (
-    <main className="min-h-dvh flex items-center justify-center bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] lg:p-6">
+    <main className="login-main min-h-dvh flex items-center justify-center bg-background pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] lg:p-6">
       {/* Una sola composición centrada y con ancho máximo: el panel y el formulario quedan cerca, también en pantallas muy anchas */}
       <div className="w-full grid lg:max-w-6xl lg:grid-cols-[1.05fr_1fr] lg:gap-12 xl:gap-16">
       {/* Panel de marca: una tarjeta (no una mitad pegada al borde). Solo en pantallas grandes */}
@@ -68,10 +83,10 @@ export function LoginScreen({ onSubmit }: { onSubmit: (key: string) => Promise<s
       <section className="flex items-center justify-center px-4 py-5 sm:px-8 sm:py-10 lg:px-0 lg:py-0">
         <div className="login-rise w-full max-w-md">
           {/* Identidad del negocio */}
-          <div className="mb-4 min-h-12 flex items-center sm:mb-7 sm:min-h-14">
+          <div hidden={short} className="login-logo mb-4 min-h-12 flex items-center sm:mb-7 sm:min-h-14">
             <div className={`transition-opacity duration-300 ${brand ? "opacity-100" : "opacity-0"}`}>
-              {brand?.logo_data_url ? (
-                <img src={brand.logo_data_url} alt={brand.name || "Logo"} className="h-11 w-auto max-w-64 object-contain sm:h-14" />
+              {brand?.logo_url ? (
+                <img src={brand.logo_url} alt={brand.name || "Logo"} className="h-11 w-auto max-w-64 object-contain sm:h-14" />
               ) : (
                 <div className="flex items-center gap-2.5 text-primary font-semibold text-lg">
                   <img src="/logo.svg" alt="" className="h-9 w-9" />
@@ -83,7 +98,7 @@ export function LoginScreen({ onSubmit }: { onSubmit: (key: string) => Promise<s
 
           <form onSubmit={submit} className="rounded-2xl border bg-white p-5 sm:p-9 shadow-[0_1px_2px_rgba(23,59,54,0.04),0_16px_40px_-16px_rgba(23,59,54,0.14)] space-y-4 sm:space-y-6">
             <div className="space-y-1.5">
-              <h1 className="text-2xl font-semibold tracking-tight">Ingresá a tus cobros</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">Seguí tus cobros</h1>
             </div>
 
             {/* Ayuda a los gestores de contraseñas a guardar la clave */}
@@ -118,11 +133,11 @@ export function LoginScreen({ onSubmit }: { onSubmit: (key: string) => Promise<s
           </form>
 
           {/* Anti-estafas: la estafa típica es que alguien pida la clave */}
-          <p className="mt-3 flex items-start gap-2 rounded-lg bg-soft px-3.5 py-2.5 text-xs text-muted sm:mt-5 sm:py-3">
+          <p className="login-extra mt-3 flex items-start gap-2 rounded-lg bg-soft px-3.5 py-2.5 text-xs text-muted sm:mt-5 sm:py-3">
             <Info size={14} className="mt-0.5 shrink-0 text-secondary" />
             <span>Nadie te va a pedir tu clave por mensaje, mail o teléfono. No se la pases a nadie.</span>
           </p>
-          <p className="mt-3 text-center text-sm text-muted sm:mt-5"><span className="block font-medium text-foreground">¿Te olvidaste la clave?</span>Pedísela a quien te dio acceso al sistema.</p>
+          <p className="login-extra mt-3 text-center text-sm text-muted sm:mt-5"><span className="block font-medium text-foreground">¿Te olvidaste la clave?</span>Pedísela a quien te dio acceso al sistema.</p>
         </div>
       </section>
       </div>

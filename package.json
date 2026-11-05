@@ -12,7 +12,8 @@
     "typecheck": "node scripts/run-all.mjs typecheck",
     "dev:payments": "npm run dev --prefix payments",
     "new-app": "node scripts/new-app.mjs",
-    "setup": "node scripts/setup-dev.mjs"
+    "setup": "node scripts/setup-dev.mjs",
+    "docker:datos": "docker compose stop app && docker compose run --rm seed && docker compose up -d --build"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

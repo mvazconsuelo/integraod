@@ -85,7 +85,7 @@ export function RegisterPaymentDialog({ open, onOpenChange, onSaved, budgetId, r
           : owing.length === 0 ? <p className="rounded-lg bg-soft px-3 py-3 text-sm">No hay presupuestos con plata pendiente. Creá un presupuesto primero.</p>
           : (
             <Field label="¿De qué presupuesto?">
-              <Dropdown value={picked} onChange={(v) => { setPicked(v); setLinkId(""); }} placeholder="Buscá por cliente o concepto"
+              <Dropdown value={picked} onChange={(v) => { setPicked(v); setLinkId(""); }} placeholder="Buscá por destinatario o concepto"
                 options={owing.map((b) => ({ value: b.id, label: b.patient_ref, hint: workOf(b), trailing: `Falta ${formatMoney(b.balance_cents)}` }))} />
             </Field>
           )
@@ -95,9 +95,9 @@ export function RegisterPaymentDialog({ open, onOpenChange, onSaved, budgetId, r
         {budget && (
           <>
             {links.length > 0 && (
-              <Field label="¿Es por un pedido con link?" hint="Si lo es, ese link se cierra y no se puede pagar de nuevo. Si el cliente pagó con el link, no lo registres: llega solo.">
+              <Field label="¿Es por un link de pago?" hint="Si lo es, ese link se cierra y no se puede pagar de nuevo. Si el destinatario pagó con el link, no lo registres: llega solo.">
                 <Dropdown value={linkId} onChange={(v) => { setLinkId(v); prefill(v); }} placeholder="No, es otro pago"
-                  options={[{ value: "", label: "No, es otro pago" }, ...links.map((r) => ({ value: r.id, label: r.concept, hint: `Pedido el ${formatDate(r.created_at)}`, trailing: `Falta ${formatMoney(r.pending_cents)}` }))]} />
+                  options={[{ value: "", label: "No, es otro pago" }, ...links.map((r) => ({ value: r.id, label: r.concept, hint: `Link del ${formatDate(r.created_at)}`, trailing: `Falta ${formatMoney(r.pending_cents)}` }))]} />
               </Field>
             )}
             <Field label="¿Cuánto?" hint={`Hasta ${formatMoney(budget.balance_cents)}`}>

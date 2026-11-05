@@ -130,7 +130,7 @@ Servicio de pagos 62 ✔ · App 185 ✔ (nuevas: escenarios A–G, concurrencia,
 - **Dinero recibido**: pagos reales (`provider <> 'mock'`) aprobados, por día local del negocio. Un link pedido, un pago pendiente, rechazado, anulado o simulado no lo suma.
 - **Saldo real** de un presupuesto = total − aplicaciones activas de pagos **reales**. Un pago simulado no se puede aplicar (`simulated_payment`), y las aplicaciones simuladas que existieran de antes no descuentan (`SQL_BUDGET_APPLIED`). La migración `0014` recalculó el estado guardado con esta regla.
 - **Compartido**: solo si la persona usó "Compartir" (evento `shared` con canal). Crear, descargar o ver no cuentan. No prueba que el cliente lo recibió.
-- **Aceptado**: el cliente aceptó (evento manual) o se le aplicó su primer pago real (evento `accepted`, canal `payment`). **Rechazado**: evento expreso; cancelar no es rechazar.
+- **Aceptado**: el cliente aceptó (evento manual) o se le aplicó su primer pago real (evento `accepted`, canal `payment`). **Rechazado**: evento expreso, o **cancelar el presupuesto** (regla de negocio: se entiende que el cliente lo rechazó; evento `declined`, canal `cancel`, que deja de contar si se reabre).
 - **Tasa de aceptación** = aceptados ÷ (aceptados + rechazados) de los emitidos en el período. Sin respuestas: no hay tasa (`null`, se muestra "—"). Lo anterior a `0013` no se reconstruye.
 - **Situación comercial** (una sola, por prioridad): cancelado · completado · rechazado · necesita atención (pedido vencido) · esperando pago (pedido vigente, o aceptado sin pagar) · en curso · por responder (compartido sin respuesta) · sin compartir. Los grupos del Inicio salen de ahí y no se pisan; el resto sigue en la lista de presupuestos.
 
@@ -144,3 +144,27 @@ Migraciones `0013_budget_events` (eventos, append-only) y `0014_resync_status_re
 - Devolución (`refunded`) llega solo por aviso del proveedor: probada con el servicio simulado, no con Mercado Pago real.
 - La concurrencia se probó con llamadas simultáneas sobre SQLite; la atomicidad en D1 se apoya en una sola sentencia `INSERT … WHERE`, no verificada bajo carga real.
 - Un pago recibido sin presupuesto se puede asignar a uno o repartir entre varios; asociar un pago de otro cliente no está restringido.
+
+---
+
+# Detalle del presupuesto: circuito y conceptos separados
+
+## Cómo funciona el circuito (auditado)
+`Presupuesto` → (se comparte, evento `shared`) → `Pedido de pago` (intención en el servicio de pagos, `payment_requests` en la app; no es dinero) → `Pago recibido` (`payments`, solo aprobados; efectivo/transferencia por registro manual, Mercado Pago por webhook firmado) → `Asignación` (`payment_applications`: vincula dinero ya recibido a un presupuesto; no es un ingreso nuevo, un pago solo se asigna hasta su disponible y un presupuesto hasta su saldo).
+El saldo es `total − asignaciones activas de pagos reales`. Anular un pago o una asignación conserva la fila (con fecha y motivo) y libera el saldo.
+
+## Conceptos que ya no se mezclan
+- **Modalidad de cobro** (`budgets.payment_mode`: pago total · anticipo + saldo · pagos parciales · sin definir): cómo se acordó cobrar. Migración `0015`. Es informativa, no mueve dinero y **no se deduce de los pagos**; se define al elegir el cobro al crear el presupuesto o desde el detalle.
+- **Medio de pago**: pertenece a cada movimiento (`payments.method`); un mismo presupuesto puede tener efectivo, transferencia y Mercado Pago.
+- **Pedido de pago**: dinero pedido, pendiente; muestra lo recibido y lo que falta de ese pedido.
+- **Pago recibido** y **asignación**: ver arriba.
+
+## Pantalla
+Resumen (presupuesto · recibido · falta cobrar) → acciones a la vista (Registrar pago, Pedir pago, Compartir, y Asignar dinero recibido solo si hay dinero real sin asignar) → modalidad → pedidos de pago → dinero recibido (con anulados a la vista) → historial. El menú ⋯ conserva lo ocasional (editar, aceptó/rechazó, PDF, reabrir, cancelar).
+
+---
+
+# Reglas de negocio agregadas (ronda 3)
+
+1. **Cancelar un presupuesto = rechazo del cliente.** Al cancelar se registra `declined` (canal `cancel`); entra en la tasa de aceptación como rechazado. Si se reabre, ese rechazo se ignora. Solo se puede cancelar sin dinero aplicado (como antes). Revierte el criterio anterior de "cancelar no es rechazar".
+2. **Mercado Pago o efectivo/transferencia, no las dos a la vez.** Con un pedido por Mercado Pago esperando (pendiente o parcialmente pagado, sin vencer) el backend rechaza cargar un pago a mano (`collects_online`, 409): el pago llega solo por el webhook. Para cobrar en efectivo o transferencia se **edita el presupuesto** y se lo pasa (`POST /budgets/:id/collect-manual`), que cierra los pedidos por Mercado Pago sin pagos. Si ya se recibió una parte por Mercado Pago, no se puede pasar hasta que se complete (`online_partially_paid`). Un pedido vencido no bloquea.

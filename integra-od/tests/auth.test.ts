@@ -1,10 +1,11 @@
+import { fakeBucket } from "./helpers/r2";
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "./helpers/d1";
 import { app } from "../worker/src/app";
 import { LOGIN_MAX_FAILURES } from "../worker/src/middleware/validation";
 import type { Env } from "../worker/src/types/env";
 
-const env = () => ({ DB: createTestDb("worker"), ADMIN_TOKEN: "clave-correcta" }) as unknown as Env;
+const env = () => ({ DB: createTestDb("worker"), FILES: fakeBucket().bucket, ADMIN_TOKEN: "clave-correcta" }) as unknown as Env;
 const login = (e: Env, token: string, ip = "198.51.100.1") =>
   app.request("/api/session", { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), "CF-Connecting-IP": ip } }, e);
 
@@ -41,6 +42,6 @@ describe("ingreso con clave", () => {
     const e = env();
     const res = await app.request("/api/public/brand", {}, e);
     expect(res.status).toBe(200);
-    expect(Object.keys((await res.json()) as object).sort()).toEqual(["logo_data_url", "name"]);
+    expect(Object.keys((await res.json()) as object).sort()).toEqual(["logo_url", "name"]);
   });
 });

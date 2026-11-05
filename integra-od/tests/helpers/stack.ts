@@ -3,6 +3,7 @@ import { CLIENT, makeHarness, SECRETS, type Harness } from "../../../payments/te
 import { app as coreApp } from "../../worker/src/app";
 import { app as paymentsApp } from "../../../payments/src/app";
 import type { Env as CoreEnv } from "../../worker/src/types/env";
+import { fakeBucket } from "./r2";
 
 /**
  * Los dos servicios conectados en memoria, cada uno con su propia base de datos:
@@ -20,6 +21,7 @@ export function makeStack(opts: { mock?: boolean } = {}): Stack {
   const core: CoreEnv = {
     DB: createTestDb("worker"),
     ASSETS: undefined as never,
+    FILES: fakeBucket().bucket,
     ADMIN_TOKEN: "admin-token",
     APP_BASE_URL: "https://core.test",
     PAYMENTS_CLIENT_ID: CLIENT,

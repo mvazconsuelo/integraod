@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MessageCircle, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { WhatsAppIcon } from "@/components/ui/whatsapp-icon";
 import { Avatar } from "@/components/shared/Avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,38 +35,38 @@ export function PatientsPage() {
   const remove = async () => {
     if (!removing) return;
     try { await api(`/patients/${removing.id}`, { method: "DELETE" }); setRemoving(null); await reload(); }
-    catch (e) { setRemoveError(e instanceof Error ? e.message : "No pudimos borrar al cliente."); }
+    catch (e) { setRemoveError(e instanceof Error ? e.message : "No pudimos borrar al destinatario."); }
   };
 
   const Actions = ({ c }: { c: Contact }) => (
-    <div className="flex shrink-0 items-center gap-1">
-      {c.phone && <Button type="button" size="icon" variant="ghost" asChild><a href={whatsappUrl(c.phone, "")} target="_blank" rel="noreferrer" aria-label={`Escribirle a ${c.name} por WhatsApp`}><MessageCircle size={16} /></a></Button>}
-      <Button type="button" size="icon" variant="ghost" aria-label={`Editar a ${c.name}`} onClick={() => setDialog({ contact: c })}><Pencil size={16} /></Button>
-      <Button type="button" size="icon" variant="ghost" aria-label={`Borrar a ${c.name}`} onClick={() => { setRemoveError(""); setRemoving(c); }}><Trash2 size={16} /></Button>
+    <div className="flex shrink-0 items-center">
+      {c.phone && <Button type="button" size="icon" variant="ghost" className="h-9 w-9 sm:h-10 sm:w-10" asChild><a href={whatsappUrl(c.phone, "")} target="_blank" rel="noreferrer" aria-label={`Escribirle a ${c.name} por WhatsApp`}><WhatsAppIcon size={17} /></a></Button>}
+      <Button type="button" size="icon" variant="ghost" className="h-9 w-9 sm:h-10 sm:w-10" aria-label={`Editar a ${c.name}`} onClick={() => setDialog({ contact: c })}><Pencil size={16} /></Button>
+      <Button type="button" size="icon" variant="ghost" className="h-9 w-9 sm:h-10 sm:w-10" aria-label={`Borrar a ${c.name}`} onClick={() => { setRemoveError(""); setRemoving(c); }}><Trash2 size={16} /></Button>
     </div>
   );
 
   return (
-    <>
-      <PageHeader title="Clientes" icon={Users} action={<Button onClick={() => setDialog({})}><Plus size={16} />Nuevo cliente</Button>} />
+    <div className="mx-auto w-full max-w-3xl">
+      <PageHeader title="Destinatarios" icon={Users} action={<Button onClick={() => setDialog({})}><Plus size={16} />Nuevo destinatario</Button>} />
       {error && <ErrorMessage message={error} onRetry={reload} />}
       {loading && !data && <Loading />}
-      {data?.length === 0 && <EmptyState message="Todavía no cargaste clientes. Agregá el primero con «Nuevo cliente»." />}
+      {data?.length === 0 && <EmptyState message="Todavía no cargaste destinatarios. Agregá el primero con «Nuevo destinatario»." />}
       {data && data.length > 0 && (
         <div className="space-y-4">
           <div className="relative max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <Input aria-label="Buscar cliente" placeholder="Buscar por nombre o teléfono" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
+            <Input aria-label="Buscar destinatario" placeholder="Buscar por nombre o teléfono" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9" />
           </div>
-          {rows.length === 0 ? <p className="text-sm text-muted">No encontramos clientes con eso.</p> : (
+          {rows.length === 0 ? <p className="text-sm text-muted">No encontramos destinatarios con eso.</p> : (
             <Card className="overflow-hidden rounded-3xl">
               <ul className="divide-y">
                 {rows.map((c) => (
-                  <li key={c.id} className="flex items-center gap-3.5 px-4 py-3.5 sm:px-5">
+                  <li key={c.id} className="flex items-center gap-3 px-4 py-3.5 sm:gap-3.5 sm:px-5">
                     <Avatar name={c.name} />
                     <div className="min-w-0 flex-1">
-                      <Link to={patientPath(c.name)} className="block truncate text-[17px] font-semibold hover:underline">{c.name}</Link>
-                      <p className={c.phone ? "text-sm text-muted tabular" : "text-sm text-muted"}>{c.phone_display ?? "Sin teléfono"}</p>
+                      <Link to={patientPath(c.name)} className={`block font-semibold leading-tight [overflow-wrap:anywhere] hover:underline ${c.name.length > 28 ? "text-[15px]" : "text-[17px]"}`}>{c.name}</Link>
+                      <p className={c.phone ? "whitespace-nowrap text-sm text-muted tabular" : "text-sm text-muted"}>{c.phone_display ?? "Sin teléfono"}</p>
                     </div>
                     <Actions c={c} />
                   </li>
@@ -77,7 +78,7 @@ export function PatientsPage() {
       )}
       {dialog && <ContactDialog open onOpenChange={(o) => !o && setDialog(null)} contact={dialog.contact} onSaved={() => void reload()} />}
       {removing && (
-        <Dialog open onOpenChange={(o) => !o && setRemoving(null)} title={`¿Borrar a ${removing.name}?`} description="Se saca de los clientes. Si ya tiene presupuestos o cobros, se conserva para no perder el historial.">
+        <Dialog open onOpenChange={(o) => !o && setRemoving(null)} title={`¿Borrar a ${removing.name}?`} description="Se saca de los destinatarios. Si ya tiene presupuestos o cobros, se conserva para no perder el historial.">
           {removeError && <p role="alert" className="mb-3 text-sm text-danger">{removeError}</p>}
           <div className="flex gap-3">
             <Button variant="ghost" className="flex-1" onClick={() => setRemoving(null)}>No, volver</Button>
@@ -85,6 +86,6 @@ export function PatientsPage() {
           </div>
         </Dialog>
       )}
-    </>
+    </div>
   );
 }

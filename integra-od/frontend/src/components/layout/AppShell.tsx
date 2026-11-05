@@ -1,3 +1,4 @@
+import { readBrand } from "@/lib/brand-cache";
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
@@ -20,6 +21,8 @@ function NavItem({ item, active }: { item: (typeof NAV)[number]; active: boolean
 
 export function AppShell() {
   const { settings } = useSettings();
+  const [cached] = useState(() => readBrand());
+  const brand = settings ?? cached; // al recargar: lo último que se vio, hasta que llegan los datos
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [printRange, setPrintRange] = useState<{ from: string; to: string } | null>(null);
@@ -46,18 +49,20 @@ export function AppShell() {
     <div className="app-root min-h-dvh">
       <div className="app-body pb-[calc(4.2rem+env(safe-area-inset-bottom))] md:pb-0">
         {settings && !settings.payments_online && <p role="alert" className="app-banner bg-danger/10 text-danger text-xs text-center px-3 py-1 sm:px-4 sm:py-1.5"><span className="sm:hidden">Servicio de pagos no disponible por ahora.</span><span className="hidden sm:inline">El servicio de pagos no está disponible: por ahora no se pueden crear cobros ni registrar pagos.</span></p>}
-        {settings?.mp_mock && <p role="note" className="app-banner bg-warning/15 text-[#7a5222] text-xs text-center px-3 py-1 sm:px-4 sm:py-1.5"><span className="sm:hidden">Modo piloto: pagos simulados.</span><span className="hidden sm:inline">Modo piloto: los pagos de Mercado Pago son simulados, no se cobra dinero real.</span></p>}
         <header className="app-header bg-white border-b sticky top-0 z-30">
           <div className={cn(column, "h-14 flex items-center justify-between gap-4")}>
             <Link to="/" aria-label="Ir al inicio" className="flex items-center gap-2 font-semibold text-primary min-w-0 rounded-lg hover:opacity-80 justify-self-start">
-              {settings?.logo_data_url ? (
+              {brand?.logo_url ? (
                 // El logo suele traer el nombre escrito: se muestra solo, ancho y legible.
-                <img src={settings.logo_data_url} alt={settings.name || "Inicio"} className="h-9 w-auto max-w-44 object-contain" />
-              ) : (
+                <img src={brand.logo_url} alt={brand.name || "Inicio"} className="h-9 w-auto max-w-44 object-contain" />
+              ) : brand ? (
                 <>
                   <img src="/logo.svg" alt="" className="h-7 w-7" />
-                  <span className="truncate">{settings?.name || "Mi negocio"}</span>
+                  <span className="truncate">{brand.name || "Mi negocio"}</span>
                 </>
+              ) : (
+                // Todavía no se sabe cuál es el logo: se deja el lugar vacío (nunca el logo por defecto, que después cambiaría de golpe).
+                <span aria-hidden className="block h-9 w-28" />
               )}
             </Link>
             <div className="-mr-2"><MenuButton open={menuOpen} onToggle={() => setMenuOpen(!menuOpen)} /></div>

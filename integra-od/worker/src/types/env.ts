@@ -1,5 +1,7 @@
 export interface Env {
   DB: D1Database;
+  /** Archivos (el logo). R2. */
+  FILES: R2Bucket;
   ASSETS: Fetcher;
   ADMIN_TOKEN: string;
   APP_BASE_URL: string;

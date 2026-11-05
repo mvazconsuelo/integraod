@@ -1,4 +1,4 @@
-import { useEffect, type ComponentType, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { FileSpreadsheet, LogOut, Menu, Settings, UserRound, X } from "lucide-react";
 import { NAV, isNavActive } from "@/app/navigation";
@@ -27,6 +27,20 @@ export function MenuButton({ open, onToggle }: { open: boolean; onToggle: () => 
  */
 export function MenuPanel({ onClose, onReports }: { onClose: () => void; onReports: () => void }) {
   const { pathname } = useLocation();
+  // En pantallas grandes el menú se despliega justo debajo de la cabecera, pegado a la hamburguesa.
+  // Se ancla a la posición real del botón (en pantallas anchas la hamburguesa no está en el borde de la ventana).
+  const [anchor, setAnchor] = useState({ top: 62, right: 24 });
+  useLayoutEffect(() => {
+    const place = () => {
+      const btn = document.querySelector(".app-header button");
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      setAnchor({ top: Math.round(r.bottom) + 6, right: Math.max(8, Math.round(window.innerWidth - r.right)) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -37,9 +51,10 @@ export function MenuPanel({ onClose, onReports }: { onClose: () => void; onRepor
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-primary/25" onClick={onClose} aria-hidden />
-      <aside aria-label="Menú" className="fixed inset-y-0 right-0 z-50 flex w-[85%] max-w-xs flex-col border-l bg-white md:w-72 md:max-w-none">
-        <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+      <div className="fixed inset-0 z-40 bg-primary/25 md:bg-transparent" onClick={onClose} aria-hidden />
+      <aside aria-label="Menú" style={{ "--menu-top": `${anchor.top}px`, "--menu-right": `${anchor.right}px` } as CSSProperties}
+        className="fixed inset-y-0 right-0 z-50 flex w-[85%] max-w-xs flex-col border-l bg-white md:inset-y-auto md:right-[var(--menu-right)] md:top-[var(--menu-top)] md:max-h-[calc(100dvh-var(--menu-top)-1rem)] md:w-56 md:max-w-none md:rounded-2xl md:border md:shadow-[0_18px_40px_-16px_rgba(23,59,54,0.35)]">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b px-4 md:hidden">
           <p className="text-base font-semibold"><span className="md:hidden">Mi cuenta</span><span className="hidden md:inline">Menú</span></p>
           <button aria-label="Cerrar menú" onClick={onClose} className="rounded-md p-1 text-muted hover:bg-soft cursor-pointer"><X size={18} /></button>
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, ChevronDown, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Controller } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -18,11 +18,11 @@ const link = "cursor-pointer text-sm font-medium text-secondary hover:underline"
 const pill = "inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-secondary/30 bg-white px-3 text-[13px] font-medium sm:px-3.5 sm:text-sm text-secondary transition hover:bg-soft";
 
 /** Quién: buscar un cliente o cargarlo ahí mismo. */
-export function ClientField({ h, autoFocus, pickerRef }: { h: BudgetFormHandle; autoFocus?: boolean; pickerRef?: React.Ref<PickerHandle> }) {
+export function ClientField({ h, autoFocus, pickerRef, onDraftChange }: { h: BudgetFormHandle; autoFocus?: boolean; pickerRef?: React.Ref<PickerHandle>; onDraftChange?: (open: boolean) => void }) {
   return (
     <div className="rounded-3xl border bg-white p-5 sm:p-6">
       <Controller control={h.control} name="patient_id" render={({ field }) => (
-        <PatientPicker handle={pickerRef} autoFocus={autoFocus} error={h.errors.patient_id?.message ?? h.errors.patient_ref?.message} value={{ id: field.value, name: h.values.patient_ref }}
+        <PatientPicker handle={pickerRef} onDraftChange={onDraftChange} autoFocus={autoFocus} error={h.errors.patient_id?.message ?? h.errors.patient_ref?.message} value={{ id: field.value, name: h.values.patient_ref }}
           onChange={(p) => { h.setValue("patient_ref", p.name, { shouldValidate: true }); field.onChange(p.id); }} />
       )} />
     </div>
@@ -60,7 +60,7 @@ export function ConceptsFields({ h }: { h: BudgetFormHandle }) {
                 <span className="block truncate text-sm font-medium">{row?.description?.trim() || `Concepto ${i + 1}`}</span>
                 <span className="block text-xs tabular text-muted">{formatMoney(line)}{row && row.quantity > 1 ? ` · ${row.quantity} unidades` : ""} · Editar</span>
               </button>
-              <button type="button" className="shrink-0 cursor-pointer text-sm text-muted hover:text-danger hover:underline" onClick={() => h.remove(i)}>Quitar</button>
+              <button type="button" aria-label={`Quitar concepto ${i + 1}`} title="Quitar" className="mr-3 grid h-11 w-11 shrink-0 sm:mr-4 cursor-pointer place-items-center rounded-lg text-danger transition hover:bg-danger/10" onClick={() => h.remove(i)}><Trash2 size={19} aria-hidden /></button>
             </div>
           );
         }
@@ -71,13 +71,15 @@ export function ConceptsFields({ h }: { h: BudgetFormHandle }) {
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <label htmlFor={`desc-${f.id}`} className="text-sm font-semibold">Concepto{fields.length > 1 ? ` ${i + 1}` : ""}<span className="text-danger" aria-hidden> *</span></label>
-                {fields.length > 1 && <button type="button" className="cursor-pointer text-sm text-muted hover:text-danger hover:underline" onClick={() => h.remove(i)}>Quitar</button>}
               </div>
-              <Controller control={control} name={`items.${i}.description`} render={({ field }) => <TreatmentCombobox id={`desc-${f.id}`} nextId={`amt-${f.id}`} value={field.value} onChange={field.onChange} catalog={h.catalog} onPick={(t) => h.pickTreatment(i, f.id, t)} invalid={!!errors.items?.[i]?.description} />} />
+              <Controller control={control} name={`items.${i}.description`} render={({ field }) => <TreatmentCombobox id={`desc-${f.id}`} nextId={`amt-${f.id}`} value={field.value} onChange={field.onChange} catalog={h.catalog} onPick={(t) => h.pickTreatment(i, f.id, t)} onCreate={(name) => void h.createConcept(i, name)} invalid={!!errors.items?.[i]?.description} />} />
               {errors.items?.[i]?.description && <p role="alert" className="text-xs text-danger">{errors.items[i]?.description?.message}</p>}
             </div>
             <Field label={showDetail ? "Precio de cada uno" : "Importe"} error={errors.items?.[i]?.unit_price_cents?.message}>
-              <Controller control={control} name={`items.${i}.unit_price_cents`} render={({ field }) => <AmountField id={`amt-${f.id}`} key={`${f.id}-${h.priceKeys[f.id] ?? 0}`} valueCents={field.value} onChange={field.onChange} />} />
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1"><Controller control={control} name={`items.${i}.unit_price_cents`} render={({ field }) => <AmountField id={`amt-${f.id}`} key={`${f.id}-${h.priceKeys[f.id] ?? 0}`} valueCents={field.value} onChange={field.onChange} />} /></div>
+                {fields.length > 1 && <button type="button" aria-label={`Quitar concepto ${i + 1}`} title="Quitar" className="grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-lg text-danger transition hover:bg-danger/10" onClick={() => h.remove(i)}><Trash2 size={19} aria-hidden /></button>}
+              </div>
             </Field>
             </div>
             {showDetail && (
@@ -90,7 +92,7 @@ export function ConceptsFields({ h }: { h: BudgetFormHandle }) {
         );
       })}
       <div className="flex flex-wrap gap-1.5 sm:gap-2">
-        <button type="button" className={pill} onClick={() => h.append({ description: "", quantity: 1, unit_price_cents: 0, discount_pct: 0 })}><Plus size={15} aria-hidden />Otro concepto</button>
+        <button type="button" className={pill} onClick={() => h.append({ description: "", detail: "", quantity: 1, unit_price_cents: 0, discount_pct: 0 })}><Plus size={15} aria-hidden />Otro concepto</button>
         {activeField && !activeDetail && <button type="button" className={pill} onClick={() => h.setDetail((d) => ({ ...d, [activeField.id]: true }))}><SlidersHorizontal size={14} aria-hidden className="hidden sm:block" />Cantidad o descuento</button>}
       </div>
     </section>
@@ -102,7 +104,7 @@ export function OptionalFields({ h }: { h: BudgetFormHandle }) {
   const open = h.open.notes;
   const expired = h.errors.valid_until?.message;
   useEffect(() => { if (expired && !open) h.setOpen({ ...h.open, notes: true }); }, [expired]); // eslint-disable-line react-hooks/exhaustive-deps
-  const summary = `${h.values.valid_until ? `Vence el ${formatDate(h.values.valid_until)}` : "Sin vencimiento"}${h.values.notes.trim() ? " · Con observaciones" : " · Observaciones"}`;
+  const summary = `${h.values.valid_until ? `Vence el ${formatDate(h.values.valid_until)}` : "Sin vencimiento"}${h.values.notes.trim() ? " · Con condiciones" : " · Condiciones"}`;
   return (
     <section aria-label="Más opciones" className="rounded-3xl border bg-white">
       <button type="button" aria-expanded={open} aria-controls="mas-opciones" onClick={() => h.setOpen({ ...h.open, notes: !open })}
@@ -118,8 +120,8 @@ export function OptionalFields({ h }: { h: BudgetFormHandle }) {
           <Field label="Fecha de vencimiento" hint="Hasta cuándo vale. Si no corresponde, dejalo vacío." error={expired}>
             <Controller control={h.control} name="valid_until" render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} clearable placeholder="Sin vencimiento" />} />
           </Field>
-          <Field label="Observaciones" hint="Se imprimen en el presupuesto.">
-            <Controller control={h.control} name="notes" render={({ field }) => <Textarea aria-label="Observaciones" enterKeyHint="enter" className="min-h-24" value={field.value} onChange={field.onChange} placeholder="Condiciones, aclaraciones, formas de pago…" />} />
+          <Field label="Condiciones" hint="Se imprimen en el presupuesto.">
+            <Controller control={h.control} name="notes" render={({ field }) => <Textarea aria-label="Condiciones" enterKeyHint="enter" className="min-h-24" value={field.value} onChange={field.onChange} placeholder="Condiciones, aclaraciones, formas de pago…" />} />
           </Field>
         </div>
       )}

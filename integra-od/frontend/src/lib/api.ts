@@ -16,6 +16,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   try {
     res = await fetch(`/api${path}`, {
       method: init.method ?? (init.body ? "POST" : "GET"),
+      cache: "no-store", // los datos de dinero siempre frescos: nunca una copia guardada por el navegador
       headers: { "Content-Type": "application/json", ...(init.auth === false ? {} : { Authorization: `Bearer ${getToken()}` }) },
       body: init.body ? JSON.stringify(init.body) : undefined,
     });

@@ -1,3 +1,4 @@
+import { createTreatment } from "@/features/settings/services/treatments.service";
 import { useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,6 +39,15 @@ export function useBudgetForm(initial: BudgetForm, notesOpen: boolean) {
     if (t.price_cents > 0) { form.setValue(`items.${index}.unit_price_cents`, t.price_cents, { shouldValidate: true }); setPriceKeys((k) => ({ ...k, [rowId]: (k[rowId] ?? 0) + 1 })); }
   };
 
-  return { form, control: form.control, setValue: form.setValue, errors, fields, append, remove, values, sum: budgetTotal(values.items ?? []), catalog, pickTreatment, priceKeys, detail, setDetail, open, setOpen };
+  // Un concepto que no estaba en el listado se guarda en él (categoría "General", con el precio que ya se cargó en la fila).
+  const createConcept = async (index: number, name: string) => {
+    form.setValue(`items.${index}.description`, name.trim(), { shouldValidate: true });
+    try {
+      await createTreatment({ name: name.trim(), category: "General", price_cents: form.getValues(`items.${index}.unit_price_cents`) || 0 });
+      await saved.reload();
+    } catch { /* el concepto igual queda escrito en el presupuesto */ }
+  };
+
+  return { form, control: form.control, createConcept, setValue: form.setValue, errors, fields, append, remove, values, sum: budgetTotal(values.items ?? []), catalog, pickTreatment, priceKeys, detail, setDetail, open, setOpen };
 }
 export type BudgetFormHandle = ReturnType<typeof useBudgetForm>;

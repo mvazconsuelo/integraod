@@ -11,20 +11,22 @@ export interface Budget {
   /** El anticipo ya se pidió o se cobró: solo se pueden pedir pagos que siguen. */
   has_advance: boolean;
   /** Cuándo se compartió por primera vez (null: nunca) y la respuesta expresa del cliente. */
+  /** Cómo se acordó cobrar (null: sin definir; no se deduce de los pagos). */ payment_mode: "total" | "advance" | "partial" | null;
+  /** Medio de cobro elegido (null: sin elegir). Informativo. */ collect_method: "mercadopago" | "transfer" | "cash" | null;
   shared_at: string | null; answer: "accepted" | "declined" | null;
   /** Una sola situación, decidida por el servidor: de ahí salen los grupos del Inicio. */
   situation: Situation;
   /** Primer concepto del presupuesto y cuántos tiene: para nombrar el tratamiento en los cobros. */
   first_item: string | null; item_count: number;
 }
-export interface BudgetItem { id: string; description: string; quantity: number; unit_price_cents: number; discount_pct: number; total_cents: number }
+export interface BudgetItem { id: string; description: string; /** Detalle libre del concepto (vacío si no tiene). */ detail: string; quantity: number; unit_price_cents: number; discount_pct: number; total_cents: number }
 export interface BudgetApplication {
   id: string; payment_id: string; amount_cents: number; created_at: string; voided_at: string | null; void_reason: string | null;
   method: Method; provider: string; kind: Kind; paid_at: string; concept: string;
 }
 export interface ActivityEvent { id: string; at: string; type: "budget" | "request" | "payment" | "adjustment"; text: string; detail?: string; to: string; simulated?: boolean }
 export interface TimelineEvent { at: string; type: "budget" | "request" | "payment" | "adjustment"; title: string; detail?: string; amount_cents?: number }
-export interface BudgetDetail extends Budget { items: BudgetItem[]; applications: BudgetApplication[]; requests: PaymentRequest[]; requestable_cents: number; timeline: TimelineEvent[] }
+export interface BudgetDetail extends Budget { /** Se cobra por Mercado Pago (hay un pedido esperando): el pago llega solo y no se carga a mano. */ collects_online: boolean; items: BudgetItem[]; applications: BudgetApplication[]; requests: PaymentRequest[]; requestable_cents: number; timeline: TimelineEvent[] }
 
 export interface PaymentRequest {
   id: string; public_id: string; patient_ref: string; concept: string; amount_cents: number; kind: Kind;
@@ -60,6 +62,8 @@ export interface Summary {
   /** Saldo de hoy: presupuestos con pagos y saldo pendiente. */ open_jobs_count: number;
   /** Pagos reales confirmados en el período, cada uno una vez. */ payments_count: number;
   /** Presupuestos con un anticipo real confirmado en el período. */ advances_received_count: number;
+  /** Hasta 5 presupuestos En curso con saldo, el que más tiempo lleva sin pagos primero. */
+  oldest_balances: { id: string; number: number; patient_ref: string; balance_cents: number; last_paid_at: string | null; days_since_payment: number | null }[];
   by_method: { method: Method; total_cents: number }[];
   monthly: { month: string; total_cents: number }[];
 }
@@ -77,8 +81,8 @@ export interface PatientDetail {
 export interface Treatment { id: string; name: string; category: string; price_cents: number; position: number }
 
 export interface Settings {
-  name: string; logo_data_url: string | null; phone: string; email: string; address: string; professional_info: string;
-  primary_color: string; accent_color: string; terms: string; default_validity_days: number; /** Zona horaria del consultorio (IANA). */ time_zone: string; payments_online: boolean; mp_connected: boolean; mp_mock: boolean;
+  name: string; /** Dirección del archivo del logo (null: sin logo). El logo es un archivo, no un dato de la base. */ logo_url: string | null; phone: string; email: string; address: string; professional_info: string;
+  primary_color: string; accent_color: string; terms: string; /** Datos para transferir (vacíos si no se cargaron). */ bank_holder: string; bank_cbu: string; bank_alias: string; /** Zona horaria del consultorio (IANA). */ time_zone: string; payments_online: boolean; mp_connected: boolean; mp_mock: boolean;
 }
 
 export interface ReviewItem { id: string; provider: string; provider_payment_id: string; reason: string; amount_cents: number | null; currency: string | null; created_at: string }

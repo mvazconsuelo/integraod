@@ -9,7 +9,7 @@ interface Props {
 
 export function PageHeader({ title, subtitle, action, mobileAction, icon: Icon }: Props) {
   return (
-    <div className="mb-6 sm:mb-8 sm:flex sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+    <div className="mb-4 sm:mb-8 sm:flex sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0">
         <div className="flex items-center justify-between gap-3">
           <h1 className="flex items-center gap-3 text-[28px] font-semibold leading-tight tracking-tight sm:text-4xl">

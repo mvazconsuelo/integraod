@@ -38,8 +38,8 @@ export function PeriodReportSheet({ from, to, onDone }: { from: string; to: stri
         <PrintPage>
           <header className="flex items-center justify-between pb-4 border-b-2" style={{ borderColor: settings.accent_color }}>
             <div className="flex items-center gap-3">
-              {settings.logo_data_url && <img src={settings.logo_data_url} alt="" className="h-12 w-auto object-contain" />}
-              <p className="text-xl font-semibold" style={{ color }}>{settings.logo_data_url ? "" : settings.name}</p>
+              {settings.logo_url && <img src={settings.logo_url} alt="" className="h-12 w-auto object-contain" />}
+              <p className="text-xl font-semibold" style={{ color }}>{settings.logo_url ? "" : settings.name}</p>
             </div>
             <div className="text-right"><p className="text-lg font-semibold" style={{ color }}>Resumen del período</p><p>Del {formatDate(from)} al {formatDate(to)}</p></div>
           </header>
@@ -50,7 +50,7 @@ export function PeriodReportSheet({ from, to, onDone }: { from: string; to: stri
               <Line label={`Período anterior (${formatDate(s.previous_range.from)} al ${formatDate(s.previous_range.to)})`} value={formatMoney(s.previous_collected_cents)} />
               {s.by_method.map((m) => <Line key={m.method} label={`   ${methodLabel(m.method)}`} value={formatMoney(m.total_cents)} />)}
               <Line label="Falta cobrar hoy (presupuestos con pagos)" value={formatMoney(s.budgets_balance_cents)} bold />
-              <Line label="Anticipos pedidos en el período" value={formatMoney(s.advances_requested_cents)} />
+              <Line label="Anticipos a cobrar en el período" value={formatMoney(s.advances_requested_cents)} />
               <Line label="Anticipos cobrados en el período" value={formatMoney(s.advances_collected_cents)} />
               <Line label="Presupuestos emitidos en el período" value={`${s.budgets_issued.count} · ${formatMoney(s.budgets_issued.total)}`} />
             </tbody>
@@ -59,7 +59,7 @@ export function PeriodReportSheet({ from, to, onDone }: { from: string; to: stri
           <h2 className="mt-6 mb-2 font-semibold" style={{ color }}>Cobros del período</h2>
           {rows.length === 0 ? <p>No hubo cobros en estas fechas.</p> : (
             <table className="w-full border-collapse">
-              <thead><tr className="text-left text-white" style={{ background: color }}><th className="p-2">Fecha</th><th className="p-2">Cliente</th><th className="p-2">Concepto</th><th className="p-2">Medio</th><th className="p-2">Estado</th><th className="p-2 text-right">Importe</th></tr></thead>
+              <thead><tr className="text-left text-white" style={{ background: color }}><th className="p-2">Fecha</th><th className="p-2">Destinatario</th><th className="p-2">Concepto</th><th className="p-2">Medio</th><th className="p-2">Estado</th><th className="p-2 text-right">Importe</th></tr></thead>
               <tbody>
                 {rows.map((p) => (
                   <tr key={p.id} className="border-b"><td className="p-2">{formatDate(p.paid_at)}</td><td className="p-2">{p.patient_ref}</td><td className="p-2">{p.concept}</td><td className="p-2">{methodLabel(p.method)}</td><td className="p-2">{STATUS[p.status]}</td><td className="p-2 text-right">{formatMoney(p.amount_cents)}</td></tr>

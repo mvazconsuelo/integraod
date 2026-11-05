@@ -9,7 +9,6 @@ export interface ManualInput { patient_ref: string; amount_cents: number; method
 export const createRequest = (b: RequestInput) => api<RequestDetail>("/payments", { body: b });
 export const cancelRequest = (id: string) => api<PaymentRequest>(`/payments/${id}/cancel`, { method: "POST", body: {} });
 export const registerManual = (b: ManualInput) => api("/payments/manual", { body: b });
-export const applyPayment = (paymentId: string, budget_id: string, amount_cents: number) => api(`/payments/received/${paymentId}/apply`, { body: { budget_id, amount_cents } });
 export const voidAt = (path: string, reason: string) => api(path, { body: { reason } });
 
 export const publicLink = (publicId: string) => `${window.location.origin}/pay/${publicId}`;

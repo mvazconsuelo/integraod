@@ -15,11 +15,18 @@ export function useFlowScreen(keepChrome = false) {
     const root = document.documentElement;
     root.classList.add("flow-screen");
     root.classList.toggle("keep-chrome", keepChrome); // el Inicio conserva la cabecera y el aviso; los flujos no
+    // Al recargar, Safari restaura el scroll de antes; con la página fija ya no se puede volver a subir y el contenido queda corrido hacia arriba.
+    window.scrollTo(0, 0);
+    const frame = requestAnimationFrame(() => window.scrollTo(0, 0));
+    return () => cancelAnimationFrame(frame);
+  }, [keepChrome]);
+  useEffect(() => {
+    const root = document.documentElement;
     return () => root.classList.remove("flow-screen", "keep-chrome");
   }, [keepChrome]);
 }
 
-export function FlowScreen({ top, bar, children }: { top?: ReactNode; bar?: ReactNode; children: ReactNode }) {
+export function FlowScreen({ top, bar, children, className }: { top?: ReactNode; bar?: ReactNode; children: ReactNode; /** Para cambiar el ancho máximo (por defecto, una columna angosta). */ className?: string }) {
   const region = useRef<HTMLDivElement>(null);
 
   useFlowScreen();
@@ -40,7 +47,7 @@ export function FlowScreen({ top, bar, children }: { top?: ReactNode; bar?: Reac
   }, []);
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col">
+    <div className={cn("mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col", className)}>
       {top}
       <div ref={region} data-flow-region className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-3 desk:pb-4">{children}</div>
       {bar}
@@ -51,7 +58,7 @@ export function FlowScreen({ top, bar, children }: { top?: ReactNode; bar?: Reac
 /** La acción principal del flujo: pegada abajo en el celular, a continuación del contenido en pantallas grandes. */
 export function ActionBar({ error, children, className }: { error?: string; children: ReactNode; className?: string }) {
   return (
-    <div className={cn("-mx-4 shrink-0 border-t bg-white px-4 py-2.5 desk:mx-0 desk:mt-2 desk:rounded-2xl desk:border desk:p-4", className)}>
+    <div className={cn("-mx-4 shrink-0 border-t bg-white px-4 py-2.5 desk:mx-0 desk:mb-6 desk:mt-2 desk:rounded-2xl desk:border desk:p-4", className)}>
       {error && <p role="alert" className="mb-2 text-sm font-medium text-danger">{error}</p>}
       <div className="flex items-center justify-between gap-4">{children}</div>
     </div>

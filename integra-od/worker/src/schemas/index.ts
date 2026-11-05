@@ -3,13 +3,15 @@ import { z } from "zod";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida.");
 const cents = z.number().int("Importe inválido.").positive("El importe debe ser mayor a cero.");
-const ref = z.string().trim().min(1, "Ingresá el nombre o referencia del cliente.").max(120);
+const ref = z.string().trim().min(1, "Ingresá el nombre o referencia del destinatario.").max(120);
 
 export const budgetItemSchema = z.object({
   description: z.string().trim().min(1, "Escribí o elegí el concepto.").max(200),
   quantity: z.number().int().positive("La cantidad debe ser al menos 1."),
   unit_price_cents: z.number().int().min(0, "El precio no puede ser negativo."),
   discount_pct: z.number().int().min(0).max(100, "El descuento va de 0 a 100.").default(0),
+  /** Detalle libre del concepto (medidas, materiales, qué incluye). */
+  detail: z.string().trim().max(1000, "El detalle es muy largo (máximo 1000 letras).").default(""),
 });
 
 export const budgetSchema = z.object({
@@ -24,6 +26,10 @@ export const budgetSchema = z.object({
 
 export const budgetSharedSchema = z.object({ channel: z.string().trim().max(30).default("") });
 export const budgetAnswerSchema = z.object({ answer: z.enum(["accepted", "declined"]) });
+
+export const budgetPaymentModeSchema = z.object({ mode: z.enum(["total", "advance", "partial"]).nullable() });
+
+export const budgetCollectMethodSchema = z.object({ method: z.enum(["mercadopago", "transfer", "cash"]).nullable() });
 
 export const budgetStatusSchema = z.object({
   status: z.enum(["sent", "in_progress", "completed", "cancelled"]),
@@ -65,11 +71,6 @@ export const voidSchema = z.object({
 
 export const settingsSchema = z.object({
   name: z.string().trim().max(120),
-  logo_data_url: z
-    .string()
-    .max(300_000, "El logo es muy pesado. Usá una imagen de menos de 200 KB.")
-    .regex(/^data:image\/(png|jpeg|svg\+xml|webp);base64,/, "Formato de logo no válido.")
-    .nullable(),
   phone: z.string().max(60),
   email: z.string().max(120),
   address: z.string().max(200),
@@ -77,7 +78,10 @@ export const settingsSchema = z.object({
   primary_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color inválido."),
   accent_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color inválido."),
   terms: z.string().max(2000),
-  default_validity_days: z.number().int().min(1).max(365),
+  bank_holder: z.string().trim().max(120).optional(),
+  // CBU/CVU: 22 dígitos (se aceptan con espacios o guiones). Alias: 6 a 20 letras, números, punto o guion.
+  bank_cbu: z.string().trim().transform((v) => v.replace(/[\s-]/g, "")).refine((v) => v === "" || /^\d{22}$/.test(v), "El CBU o CVU tiene 22 números.").optional(),
+  bank_alias: z.string().trim().refine((v) => v === "" || /^[a-zA-Z0-9.-]{6,20}$/.test(v), "El alias tiene entre 6 y 20 letras, números, puntos o guiones.").optional(),
   time_zone: z.string().refine(isValidTimeZone, "Elegí una zona horaria válida.").default(DEFAULT_TIME_ZONE),
 });
 
@@ -98,13 +102,13 @@ export const mockCheckoutSchema = z.object({ outcome: z.enum(["approved", "rejec
 export const rangeSchema = z.object({ from: date, to: date });
 
 export const patientCreateSchema = z.object({
-  name: z.string().trim().min(1, "Escribí el nombre completo del cliente.").max(120),
+  name: z.string().trim().min(1, "Escribí el nombre completo del destinatario.").max(120),
   /** Opcional: solo hace falta para escribirle por WhatsApp. */
   phone: z.string().trim().max(40).default(""),
   allow_duplicate_phone: z.boolean().default(false),
 });
 export const patientUpdateSchema = z.object({
-  name: z.string().trim().min(1, "Escribí el nombre completo del cliente.").max(120).optional(),
+  name: z.string().trim().min(1, "Escribí el nombre completo del destinatario.").max(120).optional(),
   phone: z.string().trim().max(40).optional(),
   allow_duplicate_phone: z.boolean().default(false),
 });

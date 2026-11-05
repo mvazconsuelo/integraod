@@ -26,6 +26,10 @@ export interface BudgetRow {
   /** Cuándo se compartió por primera vez (null: nunca se usó Compartir) y la respuesta expresa del cliente. */
   shared_at: string | null;
   answer: "accepted" | "declined" | null;
+  /** Cómo se acordó cobrar (null: sin definir). No se deduce de los pagos recibidos. */
+  payment_mode: "total" | "advance" | "partial" | null;
+  /** Medio de cobro elegido (null: sin elegir). Informativo. */
+  collect_method: "mercadopago" | "transfer" | "cash" | null;
   /** Pedidos de pago vigentes (sin pagar y sin vencer) y vencidos sin pagar. */
   open_requests: number;
   expired_requests: number;
@@ -38,6 +42,7 @@ export interface BudgetItemRow {
   quantity: number;
   unit_price_cents: number;
   discount_pct: number;
+  detail: string;
 }
 
 /**
@@ -56,7 +61,7 @@ const select = () => `SELECT b.*, ${SQL_BUDGET_APPLIED} AS applied_cents, ${hasA
   (SELECT i.description FROM budget_items i WHERE i.budget_id = b.id ORDER BY i.position LIMIT 1) AS first_item,
   (SELECT COUNT(*) FROM budget_items i WHERE i.budget_id = b.id) AS item_count,
   (SELECT MIN(e.at) FROM budget_events e WHERE e.budget_id = b.id AND e.type = 'shared') AS shared_at,
-  (SELECT e.type FROM budget_events e WHERE e.budget_id = b.id AND e.type IN ('accepted','declined') ORDER BY e.seq DESC LIMIT 1) AS answer,
+  (SELECT e.type FROM budget_events e WHERE e.budget_id = b.id AND e.type IN ('accepted','declined') AND NOT (e.channel = 'cancel' AND b.status <> 'cancelled') ORDER BY e.seq DESC LIMIT 1) AS answer,
   (SELECT COUNT(*) FROM payment_requests r WHERE r.budget_id = b.id AND r.status IN ('pending','partially_paid') AND (r.due_date IS NULL OR r.due_date >= date('now', '${tzOffsetSql()}'))) AS open_requests,
   (SELECT COUNT(*) FROM payment_requests r WHERE r.budget_id = b.id AND r.status IN ('pending','partially_paid') AND r.due_date < date('now', '${tzOffsetSql()}')) AS expired_requests,
   (SELECT p.phone FROM patients p WHERE p.id = b.patient_id) AS patient_phone FROM budgets b`;
@@ -71,7 +76,7 @@ export const getBudget = (db: D1Database, id: string) =>
 
 export async function getItems(db: D1Database, budgetId: string) {
   const { results } = await db
-    .prepare("SELECT id, position, description, quantity, unit_price_cents, discount_pct FROM budget_items WHERE budget_id = ? ORDER BY position")
+    .prepare("SELECT id, position, description, detail, quantity, unit_price_cents, discount_pct FROM budget_items WHERE budget_id = ? ORDER BY position")
     .bind(budgetId)
     .all<BudgetItemRow>();
   return results;
@@ -86,14 +91,14 @@ interface BudgetWrite {
   notes: string;
   total_cents: number;
   now: string;
-  items: { description: string; quantity: number; unit_price_cents: number; discount_pct: number }[];
+  items: { description: string; detail?: string; quantity: number; unit_price_cents: number; discount_pct: number }[];
 }
 
 const insertItems = (db: D1Database, w: BudgetWrite) =>
   w.items.map((it, i) =>
     db
-      .prepare("INSERT INTO budget_items (id, budget_id, position, description, quantity, unit_price_cents, discount_pct) VALUES (?,?,?,?,?,?,?)")
-      .bind(crypto.randomUUID(), w.id, i, it.description, it.quantity, it.unit_price_cents, it.discount_pct),
+      .prepare("INSERT INTO budget_items (id, budget_id, position, description, detail, quantity, unit_price_cents, discount_pct) VALUES (?,?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(), w.id, i, it.description, it.detail ?? "", it.quantity, it.unit_price_cents, it.discount_pct),
   );
 
 export async function createBudget(db: D1Database, w: BudgetWrite) {
@@ -124,4 +129,12 @@ export async function setBudgetStatus(db: D1Database, id: string, status: Budget
 
 export async function insertEvent(db: D1Database, budgetId: string, type: "shared" | "accepted" | "declined", channel: string, at: string) {
   await db.prepare("INSERT INTO budget_events (budget_id, type, channel, at) VALUES (?, ?, ?, ?)").bind(budgetId, type, channel, at).run();
+}
+
+export async function setPaymentMode(db: D1Database, id: string, mode: string | null, at: string) {
+  await db.prepare("UPDATE budgets SET payment_mode = ?, updated_at = ? WHERE id = ?").bind(mode, at, id).run();
+}
+
+export async function setCollectMethod(db: D1Database, id: string, method: string | null, at: string) {
+  await db.prepare("UPDATE budgets SET collect_method = ?, updated_at = ? WHERE id = ?").bind(method, at, id).run();
 }
